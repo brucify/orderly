@@ -1,1 +1,3 @@
-pub mod connector;
+mod bitstamp;
+mod stdin;
+pub mod orderly;

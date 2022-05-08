@@ -1,7 +1,7 @@
-use orderly::connector;
+use orderly::orderly;
 
 #[tokio::main]
 async fn main() {
-    connector::run().await;
+    orderly::run().await;
 }
 
