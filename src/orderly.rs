@@ -12,7 +12,10 @@ pub async fn run() {
             ws_msg = ws_stream.next() => {
                 match bitstamp::parse(ws_msg) {
                     Ok(_) => {},
-                    Err(_) => break
+                    Err(e) => {
+                        println!("Err: {:?}", e);
+                        break
+                    }
                 }
             },
             stdin_msg = rx_stdin.recv() => {
