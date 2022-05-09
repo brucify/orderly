@@ -7,55 +7,53 @@ use tokio_tungstenite::{MaybeTlsStream, WebSocketStream};
 use tungstenite::protocol::Message;
 use url::Url;
 
-#[derive(Debug, Deserialize, PartialEq)]
-struct InEvent {
-    event: EventType,
-    data: InData,
-    channel: String,
-}
+#[derive(Debug, Deserialize, Serialize, PartialEq)]
+#[serde(tag = "event")]
+enum Event {
+    #[serde(rename = "data")]
+    Data{data: InData, channel: Channel},
 
-#[derive(Debug, Serialize)]
-struct OutEvent {
-    event: EventType,
-    data: OutData,
+    #[serde(rename = "bts:subscribe")]
+    Subscribe{data: OutSubscription},
+
+    #[serde(rename = "bts:unsubscribe")]
+    Unsubscribe{data: OutSubscription},
+
+    #[serde(rename = "bts:subscription_succeeded")]
+    SubscriptionSucceeded{data: InSubscription, channel: Channel},
+
+    #[serde(rename = "bts:unsubscription_succeeded")]
+    UnsubscriptionSucceeded{data: InSubscription, channel: Channel},
+
+    #[serde(rename = "bts:error")]
+    Error{data: InError, channel: Channel},
 }
 
 #[derive(Debug, Deserialize, Serialize, PartialEq)]
-enum EventType {
-    #[serde(rename = "data")]
-    Data,
-
-    #[serde(rename = "bts:subscribe")]
-    Subscribe,
-
-    #[serde(rename = "bts:unsubscribe")]
-    Unsubscribe,
-
-    #[serde(rename = "bts:subscription_succeeded")]
-    SubscriptionSucceeded,
-
-    #[serde(rename = "bts:unsubscription_succeeded")]
-    UnsubscriptionSucceeded,
-
-    #[serde(rename = "bts:error")]
-    Error,
+struct OutSubscription {
+    channel: Channel,
 }
 
-#[derive(Debug, Serialize)]
-struct OutData {
-    channel: String,
-}
-
-#[derive(Debug, Deserialize, PartialEq)]
+#[derive(Debug, Deserialize, Serialize, PartialEq)]
 struct InData {
-    timestamp: Option<String>,
-    microtimestamp: Option<String>,
-    bids: Option<Vec<Bid>>,
-    asks: Option<Vec<Ask>>,
+    timestamp: String,
+    microtimestamp: String,
+    bids: Vec<Bid>,
+    asks: Vec<Ask>,
+}
+
+#[derive(Debug, Deserialize, Serialize, PartialEq)]
+struct InSubscription {}
+
+#[derive(Debug, Deserialize, Serialize, PartialEq)]
+struct InError {
+    code: Option<String>,
+    message: String,
 }
 
 type Bid = Vec<Decimal>;
 type Ask = Vec<Decimal>;
+type Channel = String;
 
 pub(crate) async fn ws_stream() -> WebSocketStream<MaybeTlsStream<TcpStream>> {
     let url = Url::parse("wss://ws.bitstamp.net").unwrap();
@@ -72,10 +70,7 @@ pub(crate) fn parse(ws_msg: Option<Result<Message, tungstenite::Error>>) -> Resu
     })?;
     match msg {
         Message::Binary(x) => println!("binary {:?}", x),
-        Message::Text(x) => {
-            // let x = deserialize(x).map_err(Error::BadData)?;
-            println!("{:?}", x)
-        },
+        Message::Text(x) => println!("{:?}", deserialize(x)?),
         Message::Ping(x) => println!("Ping {:?}", x),
         Message::Pong(x) => println!("Pong {:?}", x),
         Message::Close(x) => println!("Close {:?}", x),
@@ -84,7 +79,7 @@ pub(crate) fn parse(ws_msg: Option<Result<Message, tungstenite::Error>>) -> Resu
     Ok(())
 }
 
-fn deserialize(s: String) -> serde_json::Result<InEvent> {
+fn deserialize(s: String) -> serde_json::Result<Event> {
     Ok(serde_json::from_str(&s)?)
 }
 
@@ -113,13 +108,12 @@ mod test {
                        \"channel\":\"order_book_ethbtc\",\
                        \"event\":\"data\"\
                    }".to_string())?,
-                   InEvent{
-                       event: EventType::Data,
+                   Event::Data{
                        data: InData {
-                           timestamp: Some("1652103479".to_string()),
-                           microtimestamp: Some("1652103479857383".to_string()),
-                           bids: Some(vec![vec![dec!(0.07295794), dec!(0.46500000)], vec![dec!(0.07295284), dec!(0.60423006)]]),
-                           asks: Some(vec![vec![dec!(0.07301587), dec!(0.46500000)], vec![dec!(0.07301952), dec!(7.74449027)]])
+                           timestamp: "1652103479".to_string(),
+                           microtimestamp: "1652103479857383".to_string(),
+                           bids: vec![vec![dec!(0.07295794), dec!(0.46500000)], vec![dec!(0.07295284), dec!(0.60423006)]],
+                           asks: vec![vec![dec!(0.07301587), dec!(0.46500000)], vec![dec!(0.07301952), dec!(7.74449027)]]
                        },
                        channel: "order_book_ethbtc".to_string(),
                    });
@@ -133,32 +127,28 @@ mod test {
                        \"channel\":\"order_book_ethbtc\",\
                        \"event\":\"bts:subscription_succeeded\"
                    }".to_string())?,
-                   InEvent{
-                       event: EventType::SubscriptionSucceeded,
-                       data: InData { timestamp: None, microtimestamp: None, bids: None, asks: None },
+                   Event::SubscriptionSucceeded{
+                       data: InSubscription{},
                        channel: "order_book_ethbtc".to_string(),
                    });
         Ok(())
     }
-    //
-    // #[test]
-    // fn should_deserialize_subscription_succeeded() -> Result<(), Error> {
-    //     assert_eq!(deserialize("{\
-    //                    \"\event\":\"bts:error\",\
-    //                    \"channel\":\"\",\
-    //                    \"data\":{\
-    //                        \"code\":null,\
-    //                        \"message\":\"Incorrect JSON format.\"\
-    //                    }\
-    //                }".to_string())?,
-    //                InEvent{
-    //                    event: EventType::Error,
-    //                    data: InData { timestamp: None, microtimestamp: None, bids: None, asks: None },
-    //                    channel: None,
-    //                });
-    //     Ok(())
-    // }
 
-
+    #[test]
+    fn should_deserialize_error() -> Result<(), Error> {
+        assert_eq!(deserialize("{\
+                       \"event\":\"bts:error\",\
+                       \"channel\":\"\",\
+                       \"data\":{\
+                           \"code\":null,\
+                           \"message\":\"Incorrect JSON format.\"\
+                       }\
+                   }".to_string())?,
+                   Event::Error{
+                       data: InError{ code: None, message: "Incorrect JSON format.".to_string() },
+                       channel: "".to_string(),
+                   });
+        Ok(())
+    }
 }
 
