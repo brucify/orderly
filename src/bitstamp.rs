@@ -1,3 +1,4 @@
+use chrono::{DateTime, Utc};
 use crate::error::Error;
 use futures::{SinkExt, StreamExt};
 use rust_decimal::Decimal;
@@ -6,6 +7,8 @@ use tokio::net::TcpStream;
 use tokio_tungstenite::{MaybeTlsStream, WebSocketStream};
 use tungstenite::protocol::Message;
 use url::Url;
+
+const BITSTAMP_WS_URL: &str = "wss://ws.bitstamp.net";
 
 #[derive(Debug, Deserialize, Serialize, PartialEq)]
 #[serde(tag = "event")]
@@ -36,8 +39,12 @@ struct OutSubscription {
 
 #[derive(Debug, Deserialize, Serialize, PartialEq)]
 struct InData {
-    timestamp: String,
-    microtimestamp: String,
+    #[serde(with = "timestamp")]
+    timestamp: DateTime<Utc>,
+
+    #[serde(with = "microtimestamp")]
+    microtimestamp: DateTime<Utc>,
+
     bids: Vec<Bid>,
     asks: Vec<Ask>,
 }
@@ -56,7 +63,7 @@ type Ask = Vec<Decimal>;
 type Channel = String;
 
 pub(crate) async fn ws_stream() -> WebSocketStream<MaybeTlsStream<TcpStream>> {
-    let url = Url::parse("wss://ws.bitstamp.net").unwrap();
+    let url = Url::parse(BITSTAMP_WS_URL).unwrap();
     let (ws_stream, _) =
         tokio_tungstenite::connect_async(url).await.expect("Failed to connect");
     println!("WebSocket handshake has been successfully completed");
@@ -91,8 +98,49 @@ pub(crate) async fn close(ws_stream: &mut WebSocketStream<MaybeTlsStream<TcpStre
     let _ = ws_stream.close(None).await;
 }
 
+mod timestamp {
+    use std::str::FromStr;
+    use chrono::{DateTime, Utc, TimeZone};
+    use serde::{self, Deserialize, Serializer, Deserializer};
+
+    pub fn serialize<S>(date: &DateTime<Utc>, serializer: S) -> Result<S::Ok, S::Error>
+        where S: Serializer,
+    {
+        serializer.serialize_i64(date.timestamp())
+    }
+
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<DateTime<Utc>, D::Error>
+        where D: Deserializer<'de>,
+    {
+        let s = String::deserialize(deserializer)?;
+        let datetime = Utc.timestamp(i64::from_str(&s).map_err(serde::de::Error::custom)?, 0);
+        Ok(datetime)
+    }
+}
+
+mod microtimestamp {
+    use std::str::FromStr;
+    use chrono::{DateTime, Utc, TimeZone};
+    use serde::{self, Deserialize, Serializer, Deserializer};
+
+    pub fn serialize<S>(date: &DateTime<Utc>, serializer: S) -> Result<S::Ok, S::Error>
+        where S: Serializer,
+    {
+        serializer.serialize_i64(date.timestamp_nanos()/1000)
+    }
+
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<DateTime<Utc>, D::Error>
+        where D: Deserializer<'de>,
+    {
+        let s = String::deserialize(deserializer)?;
+        let datetime = Utc.timestamp_nanos(i64::from_str(&s).map_err(serde::de::Error::custom)?*1000);
+        Ok(datetime)
+    }
+}
+
 #[cfg(test)]
 mod test {
+    use chrono::TimeZone;
     use rust_decimal_macros::dec;
     use crate::bitstamp::*;
 
@@ -110,8 +158,8 @@ mod test {
                    }".to_string())?,
                    Event::Data{
                        data: InData {
-                           timestamp: "1652103479".to_string(),
-                           microtimestamp: "1652103479857383".to_string(),
+                           timestamp: Utc.timestamp(1652103479, 0),
+                           microtimestamp: Utc.timestamp_nanos(1652103479857383000),
                            bids: vec![vec![dec!(0.07295794), dec!(0.46500000)], vec![dec!(0.07295284), dec!(0.60423006)]],
                            asks: vec![vec![dec!(0.07301587), dec!(0.46500000)], vec![dec!(0.07301952), dec!(7.74449027)]]
                        },
