@@ -1,12 +1,12 @@
 use chrono::{DateTime, Utc};
 use crate::error::Error;
 use futures::{SinkExt, StreamExt};
-use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use tokio::net::TcpStream;
 use tokio_tungstenite::{MaybeTlsStream, WebSocketStream};
 use tungstenite::protocol::Message;
 use url::Url;
+use crate::tick::{Ask, Bid, Tick, ToTick};
 
 const BITSTAMP_WS_URL: &str = "wss://ws.bitstamp.net";
 
@@ -30,6 +30,23 @@ enum Event {
 
     #[serde(rename = "bts:error")]
     Error{data: InError, channel: Channel},
+}
+
+impl ToTick for Event {
+    fn maybe_to_tick(&self) -> Option<Tick> {
+        match self {
+            Event::Data { data, channel } =>
+                Some(Tick {
+                    exchange: "bitstamp".to_string(),
+                    channel: channel.clone(),
+                    timestamp: data.timestamp,
+                    microtimestamp: data.microtimestamp,
+                    bids: data.bids.split_at(10).0.to_vec(),
+                    asks: data.asks.split_at(10).0.to_vec(),
+                }),
+            _ => None,
+        }
+    }
 }
 
 #[derive(Debug, Deserialize, Serialize, PartialEq)]
@@ -58,8 +75,6 @@ struct InError {
     message: String,
 }
 
-type Bid = Vec<Decimal>;
-type Ask = Vec<Decimal>;
 type Channel = String;
 
 pub(crate) async fn ws_stream() -> WebSocketStream<MaybeTlsStream<TcpStream>> {
@@ -70,20 +85,24 @@ pub(crate) async fn ws_stream() -> WebSocketStream<MaybeTlsStream<TcpStream>> {
     ws_stream
 }
 
-pub(crate) fn parse(ws_msg: Option<Result<Message, tungstenite::Error>>) -> Result<(), Error> {
+pub(crate) fn parse(ws_msg: Option<Result<Message, tungstenite::Error>>) -> Result<Option<Tick>, Error> {
     let msg = ws_msg.unwrap_or_else(|| {
         println!("no message");
         Err(tungstenite::Error::ConnectionClosed)
     })?;
-    match msg {
-        Message::Binary(x) => println!("binary {:?}", x),
-        Message::Text(x) => println!("{:?}", deserialize(x)?),
-        Message::Ping(x) => println!("Ping {:?}", x),
-        Message::Pong(x) => println!("Pong {:?}", x),
-        Message::Close(x) => println!("Close {:?}", x),
-        Message::Frame(x) => println!("Frame {:?}", x),
-    }
-    Ok(())
+    let e = match msg {
+        Message::Binary(x) => { println!("binary {:?}", x); None },
+        Message::Text(x) => {
+            let e= deserialize(x)?;
+            if let Event::Data{..} = e {} else { println!("{:?}", e); }
+            Some(e)
+        },
+        Message::Ping(x) => { println!("Ping {:?}", x); None },
+        Message::Pong(x) => { println!("Pong {:?}", x); None },
+        Message::Close(x) => { println!("Close {:?}", x); None },
+        Message::Frame(x) => { println!("Frame {:?}", x); None },
+    };
+    Ok(e.map(|e| e.maybe_to_tick()).flatten())
 }
 
 fn deserialize(s: String) -> serde_json::Result<Event> {

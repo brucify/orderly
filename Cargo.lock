@@ -230,6 +230,7 @@ dependencies = [
  "futures-core",
  "futures-task",
  "futures-util",
+ "num_cpus",
 ]
 
 [[package]]
@@ -538,6 +539,7 @@ dependencies = [
  "chrono",
  "env_logger",
  "futures",
+ "futures-executor",
  "rust_decimal",
  "rust_decimal_macros",
  "serde",

@@ -1,17 +1,25 @@
 use crate::{bitstamp, stdin};
 use futures::{SinkExt, StreamExt};
+use futures_executor::ThreadPool;
 use tungstenite::protocol::Message;
 
 pub async fn run() {
     let mut ws_stream = bitstamp::ws_stream().await;
     let mut rx_stdin = stdin::rx();
+    let pool = ThreadPool::new().expect("Failed to build pool");
+    let (tx_ticks, mut rx_ticks) = futures::channel::mpsc::unbounded();
 
     // handle websocket messages
     loop {
         tokio::select! {
             ws_msg = ws_stream.next() => {
                 match bitstamp::parse(ws_msg) {
-                    Ok(_) => {},
+                    Ok(t) => {
+                        let tx = tx_ticks.clone();
+                        pool.spawn_ok(async move {
+                            t.map(|x|tx.unbounded_send(x).expect("Failed to send"));
+                        });
+                    },
                     Err(e) => {
                         println!("Err: {:?}", e);
                         break
@@ -24,6 +32,12 @@ pub async fn run() {
                         let _ = ws_stream.send(Message::Text(msg)).await;
                     },
                     None => break
+                }
+            },
+            tick = rx_ticks.next() => {
+                match tick {
+                    Some(t) => println!("{:?}", t),
+                    _ => {}
                 }
             }
         };

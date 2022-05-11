@@ -9,6 +9,7 @@ edition = "2021"
 chrono = "0.4.19"
 env_logger = "0.9.0"
 futures = "0.3.21"
+futures-executor = { version = "0.3.21", features = ["thread-pool"] }
 rust_decimal = "1.23"
 rust_decimal_macros = "1.23"
 serde = { version = "1.0.137", features = ["derive"] }
