@@ -155,7 +155,7 @@ mod test {
     use std::collections::BTreeMap;
     use chrono::{DateTime, TimeZone, Utc};
     use rust_decimal_macros::dec;
-    use crate::tick::{Ask, Bid, Exchange, MergedOrderBook, OrderBook, Tick};
+    use crate::orderbook::{Ask, Bid, Exchange, MergedOrderBook, OrderBook, Tick};
 
     #[test]
     fn should_add_bitstamp_tick_to_empty() {

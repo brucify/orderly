@@ -1,5 +1,5 @@
 mod bitstamp;
 mod error;
-mod tick;
+mod orderbook;
 mod stdin;
 pub mod orderly;

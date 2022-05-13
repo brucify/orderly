@@ -1,6 +1,6 @@
 use chrono::{DateTime, Utc};
 use crate::error::Error;
-use crate::tick::{Ask, Bid, Exchange, Tick, ToTick};
+use crate::orderbook::{Ask, Bid, Exchange, Tick, ToTick};
 use futures::{SinkExt, StreamExt};
 use serde::{Deserialize, Serialize};
 use tokio::net::TcpStream;
