@@ -1,12 +1,9 @@
 use chrono::{DateTime, Utc};
 use futures::channel::mpsc::{UnboundedReceiver, UnboundedSender};
 use rust_decimal::Decimal;
-use rust_decimal_macros::dec;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
-use std::ops::Index;
 
-#[derive(Debug)]
 pub(crate) struct Tick {
     pub(crate) exchange: Exchange,
     pub(crate) channel: String,
@@ -20,7 +17,6 @@ pub(crate) trait ToTick {
     fn maybe_to_tick(&self) -> Option<Tick>;
 }
 
-#[derive(Debug)]
 pub(crate) enum Exchange {
     Bitstamp,
     Binance,

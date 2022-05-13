@@ -2,14 +2,16 @@ use crate::orderbook::MergedOrderBook;
 use crate::{bitstamp, stdin, orderbook};
 use futures::{SinkExt, StreamExt};
 use futures_executor::ThreadPool;
+use log::{debug, info};
 use tungstenite::protocol::Message;
 
-pub async fn run() {
+pub async fn run(pair: &String) {
     let mut ws_stream = bitstamp::ws_stream().await;
     let mut rx_stdin = stdin::rx();
     let pool = ThreadPool::new().expect("Failed to build pool");
     let (tx_ticks, mut rx_ticks) = orderbook::channel();
     let mut book = MergedOrderBook::new();
+    bitstamp::subscribe(&mut ws_stream, pair).await.expect("Failed to subscribe to Bitstamp");
 
     // handle websocket messages
     loop {
@@ -23,7 +25,7 @@ pub async fn run() {
                         });
                     },
                     Err(e) => {
-                        println!("Err: {:?}", e);
+                        info!("Err: {:?}", e);
                         break
                     }
                 }
@@ -31,6 +33,7 @@ pub async fn run() {
             stdin_msg = rx_stdin.recv() => {
                 match stdin_msg {
                     Some(msg) => {
+                        info!("Sent: {:?}", msg);
                         let _ = ws_stream.send(Message::Text(msg)).await;
                     },
                     None => break
@@ -39,11 +42,9 @@ pub async fn run() {
             tick = rx_ticks.next() => {
                 match tick {
                     Some(t) => {
-                        println!("{:?}", t);
                         book.add(t);
-                        println!("{:?}", book);
                         let merged = book.merged();
-                        println!("{:?}", merged);
+                        debug!("{:?}", merged);
                     },
                     _ => {}
                 }

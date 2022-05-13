@@ -2,6 +2,7 @@ use chrono::{DateTime, Utc};
 use crate::error::Error;
 use crate::orderbook::{Ask, Bid, Exchange, Tick, ToTick};
 use futures::{SinkExt, StreamExt};
+use log::{debug, info};
 use serde::{Deserialize, Serialize};
 use tokio::net::TcpStream;
 use tokio_tungstenite::{MaybeTlsStream, WebSocketStream};
@@ -33,7 +34,6 @@ enum Event {
 }
 
 impl ToTick for Event {
-
     /// Converts the `Event` into a `Option<Tick>`. Only keep the top ten levels of bids and asks.
     fn maybe_to_tick(&self) -> Option<Tick> {
         match self {
@@ -83,38 +83,53 @@ pub(crate) async fn ws_stream() -> WebSocketStream<MaybeTlsStream<TcpStream>> {
     let url = Url::parse(BITSTAMP_WS_URL).unwrap();
     let (ws_stream, _) =
         tokio_tungstenite::connect_async(url).await.expect("Failed to connect");
-    println!("WebSocket handshake has been successfully completed");
+    info!("Successfully connected to {}", BITSTAMP_WS_URL);
     ws_stream
 }
 
 pub(crate) fn parse(ws_msg: Option<Result<Message, tungstenite::Error>>) -> Result<Option<Tick>, Error> {
     let msg = ws_msg.unwrap_or_else(|| {
-        println!("no message");
+        info!("no message");
         Err(tungstenite::Error::ConnectionClosed)
     })?;
     let e = match msg {
-        Message::Binary(x) => { println!("binary {:?}", x); None },
+        Message::Binary(x) => { info!("binary {:?}", x); None },
         Message::Text(x) => {
             let e= deserialize(x)?;
-            if let Event::Data{..} = e {} else { println!("{:?}", e); }
+            if let Event::Data{..} = e {} else { debug!("{:?}", e); }
             Some(e)
         },
-        Message::Ping(x) => { println!("Ping {:?}", x); None },
-        Message::Pong(x) => { println!("Pong {:?}", x); None },
-        Message::Close(x) => { println!("Close {:?}", x); None },
-        Message::Frame(x) => { println!("Frame {:?}", x); None },
+        Message::Ping(x) => { info!("Ping {:?}", x); None },
+        Message::Pong(x) => { info!("Pong {:?}", x); None },
+        Message::Close(x) => { info!("Close {:?}", x); None },
+        Message::Frame(x) => { info!("Frame {:?}", x); None },
     };
     Ok(e.map(|e| e.maybe_to_tick()).flatten())
+}
+
+pub(crate) async fn subscribe(
+    rx: &mut WebSocketStream<MaybeTlsStream<TcpStream>>,
+    channel: &String,
+) -> Result<(), Error>
+{
+    let channel = format!("order_book_{}", channel.to_lowercase());
+    let msg = serialize(Event::Subscribe{ data: OutSubscription { channel } })?;
+    rx.send(Message::Text(msg)).await?;
+    Ok(())
 }
 
 fn deserialize(s: String) -> serde_json::Result<Event> {
     Ok(serde_json::from_str(&s)?)
 }
 
+fn serialize(e: Event) -> serde_json::Result<String> {
+    Ok(serde_json::to_string(&e)?)
+}
+
 pub(crate) async fn close(ws_stream: &mut WebSocketStream<MaybeTlsStream<TcpStream>>) {
     let _ = ws_stream.send(Message::Close(None)).await;
     let close = ws_stream.next().await;
-    println!("server close msg: {:?}", close);
+    debug!("server close msg: {:?}", close);
     assert!(ws_stream.next().await.is_none());
     let _ = ws_stream.close(None).await;
 }
@@ -217,6 +232,16 @@ mod test {
                        data: InError{ code: None, message: "Incorrect JSON format.".to_string() },
                        channel: "".to_string(),
                    });
+        Ok(())
+    }
+
+    #[test]
+    fn should_serialize_subscribe() -> Result<(), Error> {
+        assert_eq!(serialize(Event::Subscribe{
+            data: OutSubscription { channel: "order_book_ethbtc".to_string() }
+        })?,
+        "{\"event\":\"bts:subscribe\",\"data\":{\"channel\":\"order_book_ethbtc\"}}".to_string()
+        );
         Ok(())
     }
 }
