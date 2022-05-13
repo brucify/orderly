@@ -1,12 +1,12 @@
 use chrono::{DateTime, Utc};
 use crate::error::Error;
+use crate::tick::{Ask, Bid, Exchange, Tick, ToTick};
 use futures::{SinkExt, StreamExt};
 use serde::{Deserialize, Serialize};
 use tokio::net::TcpStream;
 use tokio_tungstenite::{MaybeTlsStream, WebSocketStream};
 use tungstenite::protocol::Message;
 use url::Url;
-use crate::tick::{Ask, Bid, Tick, ToTick};
 
 const BITSTAMP_WS_URL: &str = "wss://ws.bitstamp.net";
 
@@ -33,16 +33,18 @@ enum Event {
 }
 
 impl ToTick for Event {
+
+    /// Converts the `Event` into a `Option<Tick>`. Only keep the top ten levels of bids and asks.
     fn maybe_to_tick(&self) -> Option<Tick> {
         match self {
             Event::Data { data, channel } =>
                 Some(Tick {
-                    exchange: "bitstamp".to_string(),
+                    exchange: Exchange::Bitstamp,
                     channel: channel.clone(),
                     timestamp: data.timestamp,
                     microtimestamp: data.microtimestamp,
-                    bids: data.bids.split_at(10).0.to_vec(),
-                    asks: data.asks.split_at(10).0.to_vec(),
+                    bids: data.bids.split_at(10).0.to_vec(), // only keep 10
+                    asks: data.asks.split_at(10).0.to_vec(), // only keep 10
                 }),
             _ => None,
         }
@@ -179,8 +181,8 @@ mod test {
                        data: InData {
                            timestamp: Utc.timestamp(1652103479, 0),
                            microtimestamp: Utc.timestamp_nanos(1652103479857383000),
-                           bids: vec![vec![dec!(0.07295794), dec!(0.46500000)], vec![dec!(0.07295284), dec!(0.60423006)]],
-                           asks: vec![vec![dec!(0.07301587), dec!(0.46500000)], vec![dec!(0.07301952), dec!(7.74449027)]]
+                           bids: vec![Bid::new(dec!(0.07295794), dec!(0.46500000)), Bid::new(dec!(0.07295284), dec!(0.60423006))],
+                           asks: vec![Ask::new(dec!(0.07301587), dec!(0.46500000)), Ask::new(dec!(0.07301952), dec!(7.74449027))]
                        },
                        channel: "order_book_ethbtc".to_string(),
                    });
