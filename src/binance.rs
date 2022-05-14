@@ -1,7 +1,8 @@
 use crate::error::Error;
-use crate::orderbook::{Ask, Bid, Exchange, Tick, ToTick};
-use crate::websocket;
+use crate::orderbook::{Exchange, Tick, ToTick};
+use crate::{orderbook, websocket};
 use log::{debug, info};
+use rust_decimal::Decimal;
 use serde::Deserialize;
 use tokio::net::TcpStream;
 use tokio_tungstenite::{MaybeTlsStream, WebSocketStream};
@@ -17,6 +18,18 @@ struct Event {
     asks: Vec<Ask>,
 }
 
+#[derive(Debug, Deserialize, PartialEq, Clone)]
+struct Bid {
+    price: Decimal,
+    amount: Decimal
+}
+
+#[derive(Debug, Deserialize, PartialEq, Clone)]
+struct Ask {
+    price: Decimal,
+    amount: Decimal
+}
+
 impl ToTick for Event {
     /// Converts the `Event` into a `Option<Tick>`. Only keep the top ten levels of bids and asks.
     fn maybe_to_tick(&self) -> Option<Tick> {
@@ -29,6 +42,13 @@ impl ToTick for Event {
             true => self.asks.split_at(depth).0.to_vec(), // only keep 10
             false => self.asks.clone(),
         };
+
+        let bids = bids.into_iter()
+            .map(|b| orderbook::Bid::new(b.price, b.amount, Exchange::Binance))
+            .collect();
+        let asks = asks.into_iter()
+            .map(|b| orderbook::Ask::new(b.price, b.amount, Exchange::Binance))
+            .collect();
 
         Some(Tick {
             exchange: Exchange::Binance,
@@ -82,8 +102,12 @@ mod test {
                    }".to_string())?,
                    Event{
                        last_update_id: 5244166729,
-                       bids: vec![Bid::new(dec!(0.06900300), dec!(14.80480000)), Bid::new(dec!(0.06900100), dec!(0.85230000))],
-                       asks: vec![Ask::new(dec!(0.06900400), dec!(12.04200000)), Ask::new(dec!(0.06900500), dec!(2.85830000))]
+                       bids: vec![ Bid { price: dec!(0.06900300), amount: dec!(14.80480000) }
+                                 , Bid { price: dec!(0.06900100), amount: dec!(0.85230000) }
+                                 ],
+                       asks: vec![ Ask { price: dec!(0.06900400), amount: dec!(12.04200000) }
+                                 , Ask { price: dec!(0.06900500), amount: dec!(2.85830000) }
+                                 ]
                    }
         );
         Ok(())

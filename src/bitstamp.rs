@@ -1,13 +1,14 @@
 use chrono::{DateTime, Utc};
 use crate::error::Error;
-use crate::orderbook::{Ask, Bid, Exchange, Tick, ToTick};
+use crate::orderbook::{Exchange, Tick, ToTick};
 use futures::SinkExt;
 use log::{debug, info};
+use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use tokio::net::TcpStream;
 use tokio_tungstenite::{MaybeTlsStream, WebSocketStream};
 use tungstenite::protocol::Message;
-use crate::websocket;
+use crate::{orderbook, websocket};
 
 const BITSTAMP_WS_URL: &str = "wss://ws.bitstamp.net";
 
@@ -48,6 +49,13 @@ impl ToTick for Event {
                     false => data.asks.clone(),
                 };
 
+                let bids = bids.into_iter()
+                    .map(|b| orderbook::Bid::new(b.price, b.amount, Exchange::Bitstamp))
+                    .collect();
+                let asks = asks.into_iter()
+                    .map(|b| orderbook::Ask::new(b.price, b.amount, Exchange::Bitstamp))
+                    .collect();
+
                 Some(Tick {
                     exchange: Exchange::Bitstamp,
                     bids,
@@ -83,6 +91,18 @@ struct InSubscription {}
 struct InError {
     code: Option<String>,
     message: String,
+}
+
+#[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
+struct Bid {
+    price: Decimal,
+    amount: Decimal
+}
+
+#[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
+struct Ask {
+    price: Decimal,
+    amount: Decimal
 }
 
 type Channel = String;
@@ -198,8 +218,12 @@ mod test {
                        data: InData {
                            timestamp: Utc.timestamp(1652103479, 0),
                            microtimestamp: Utc.timestamp_nanos(1652103479857383000),
-                           bids: vec![Bid::new(dec!(0.07295794), dec!(0.46500000)), Bid::new(dec!(0.07295284), dec!(0.60423006))],
-                           asks: vec![Ask::new(dec!(0.07301587), dec!(0.46500000)), Ask::new(dec!(0.07301952), dec!(7.74449027))]
+                           bids: vec![ Bid { price: dec!(0.07295794), amount: dec!(0.46500000) }
+                                     , Bid { price: dec!(0.07295284), amount: dec!(0.60423006) }
+                                     ],
+                           asks: vec![ Ask { price: dec!(0.07301587), amount: dec!(0.46500000) }
+                                     , Ask { price: dec!(0.07301952), amount: dec!(7.74449027) }
+                                     ]
                        },
                        channel: "order_book_ethbtc".to_string(),
                    });
