@@ -1,14 +1,12 @@
-use chrono::{DateTime, Utc};
 use futures::channel::mpsc::{UnboundedReceiver, UnboundedSender};
 use rust_decimal::Decimal;
+use rust_decimal_macros::dec;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
+#[derive(Debug)]
 pub(crate) struct Tick {
     pub(crate) exchange: Exchange,
-    pub(crate) channel: String,
-    pub(crate) timestamp: DateTime<Utc>,
-    pub(crate) microtimestamp: DateTime<Utc>,
     pub(crate) bids: Vec<Bid>,
     pub(crate) asks: Vec<Ask>,
 }
@@ -17,6 +15,7 @@ pub(crate) trait ToTick {
     fn maybe_to_tick(&self) -> Option<Tick>;
 }
 
+#[derive(Debug)]
 pub(crate) enum Exchange {
     Bitstamp,
     Binance,
@@ -47,14 +46,14 @@ impl Ask {
 }
 
 #[derive(Debug, PartialEq)]
-pub(crate) struct MergedOrderBook {
+pub(crate) struct MainOrderBook {
     bitstamp: OrderBook,
     binance: OrderBook,
 }
 
-impl MergedOrderBook {
-    pub(crate) fn new() -> MergedOrderBook {
-        MergedOrderBook {
+impl MainOrderBook {
+    pub(crate) fn new() -> MainOrderBook {
+        MainOrderBook {
             bitstamp: OrderBook::new(),
             binance: OrderBook::new(),
         }
@@ -83,17 +82,34 @@ impl MergedOrderBook {
     }
 
     /// Returns a new `OrderBook` containing the merge bids and asks from both orderbooks.
-    pub(crate) fn merged(&self) -> OrderBook {
+    pub(crate) fn merged(&self) -> View {
         let mut bids = self.bitstamp.bids.clone();
-        bids.merge_and_keep(self.binance.bids.clone(), 10);
+        bids.merge(self.binance.bids.clone());
         let mut asks = self.bitstamp.asks.clone();
-        asks.merge_and_keep(self.binance.asks.clone(), 10);
-        OrderBook{ bids, asks }
+        asks.merge(self.binance.asks.clone());
+
+        let bids = bids.iter()
+            .map(|(k, v)| Bid::new(k.clone(), v.clone()))
+            .rev()
+            .take(10)
+            .collect::<Vec<Bid>>();
+
+        let asks = asks.iter()
+            .map(|(k, v)| Ask::new(k.clone(), v.clone()))
+            .take(10)
+            .collect::<Vec<Ask>>();
+
+        let spread = match (bids.first(), asks.first()) {
+            (Some(b), Some(a)) => a.price - b.price,
+            (_, _) => dec!(0)
+        };
+
+        View{ spread, bids, asks }
     }
 }
 
 #[derive(Debug, PartialEq)]
-pub(crate) struct OrderBook {
+struct OrderBook {
     pub(crate) bids: BTreeMap<Decimal, Decimal>,
     pub(crate) asks: BTreeMap<Decimal, Decimal>,
 }
@@ -142,28 +158,31 @@ impl Merge for BTreeMap<Decimal, Decimal> {
     }
 }
 
+#[derive(Debug, PartialEq)]
+pub(crate) struct View {
+    spread: Decimal,
+    bids: Vec<Bid>,
+    asks: Vec<Ask>,
+}
+
 pub(crate) fn channel() -> (UnboundedSender<Tick>, UnboundedReceiver<Tick>) {
     futures::channel::mpsc::unbounded()
 }
 
 #[cfg(test)]
 mod test {
-    use std::collections::BTreeMap;
-    use chrono::{DateTime, TimeZone, Utc};
+    use crate::orderbook::*;
     use rust_decimal_macros::dec;
-    use crate::orderbook::{Ask, Bid, Exchange, MergedOrderBook, OrderBook, Tick};
+    use std::collections::BTreeMap;
 
     #[test]
     fn should_add_bitstamp_tick_to_empty() {
         /*
          * Given
          */
-        let mut book = MergedOrderBook::new();
+        let mut book = MainOrderBook::new();
         let t = Tick{
             exchange: Exchange::Bitstamp,
-            channel: "order_book_ethbtc".to_string(),
-            timestamp: Utc.timestamp(1652103479, 0),
-            microtimestamp: Utc.timestamp_nanos(1652103479857383000),
             bids: vec![
                 Bid::new(dec!(0.07358322), dec!(0.46500000)),
                 Bid::new(dec!(0.07357954), dec!(8.50000000)),
@@ -198,7 +217,7 @@ mod test {
         /*
          * Then
          */
-        assert_eq!(book, MergedOrderBook{
+        assert_eq!(book, MainOrderBook {
             bitstamp: OrderBook{
                 bids: BTreeMap::from([
                     (dec!(0.07358322), dec!(0.46500000)),
@@ -228,4 +247,105 @@ mod test {
             binance: OrderBook::new(),
         });
     }
+
+    #[test]
+    fn should_merge() {
+        /*
+         * Given
+         */
+        let mut book = MainOrderBook::new();
+        let t1 = Tick{
+            exchange: Exchange::Bitstamp,
+            bids: vec![
+                Bid::new(dec!(10), dec!(1)),
+                Bid::new(dec!(9), dec!(1)),
+                Bid::new(dec!(8), dec!(1)),
+                Bid::new(dec!(7), dec!(1)),
+                Bid::new(dec!(6), dec!(1)),
+                Bid::new(dec!(5), dec!(1)),
+                Bid::new(dec!(4), dec!(1)),
+                Bid::new(dec!(3), dec!(1)),
+                Bid::new(dec!(2), dec!(1)),
+                Bid::new(dec!(1), dec!(1)),
+            ],
+            asks: vec![
+                Ask::new(dec!(11), dec!(1)),
+                Ask::new(dec!(12), dec!(1)),
+                Ask::new(dec!(13), dec!(1)),
+                Ask::new(dec!(14), dec!(1)),
+                Ask::new(dec!(15), dec!(1)),
+                Ask::new(dec!(16), dec!(1)),
+                Ask::new(dec!(17), dec!(1)),
+                Ask::new(dec!(18), dec!(1)),
+                Ask::new(dec!(19), dec!(1)),
+                Ask::new(dec!(20), dec!(1)),
+            ]
+        };
+        let t2 = Tick{
+            exchange: Exchange::Binance,
+            bids: vec![
+                Bid::new(dec!(10.5), dec!(2)),
+                Bid::new(dec!(9.5), dec!(2)),
+                Bid::new(dec!(8.5), dec!(2)),
+                Bid::new(dec!(7.5), dec!(2)),
+                Bid::new(dec!(6.5), dec!(2)),
+                Bid::new(dec!(5.5), dec!(2)),
+                Bid::new(dec!(4.5), dec!(2)),
+                Bid::new(dec!(3.5), dec!(2)),
+                Bid::new(dec!(2.5), dec!(2)),
+                Bid::new(dec!(1.5), dec!(2)),
+            ],
+            asks: vec![
+                Ask::new(dec!(11.5), dec!(2)),
+                Ask::new(dec!(12.5), dec!(2)),
+                Ask::new(dec!(13.5), dec!(2)),
+                Ask::new(dec!(14.5), dec!(2)),
+                Ask::new(dec!(15.5), dec!(2)),
+                Ask::new(dec!(16.5), dec!(2)),
+                Ask::new(dec!(17.5), dec!(2)),
+                Ask::new(dec!(18.5), dec!(2)),
+                Ask::new(dec!(19.5), dec!(2)),
+                Ask::new(dec!(20.5), dec!(2)),
+            ]
+        };
+        book.add(t1);
+        book.add(t2);
+
+        /*
+         * When
+         */
+        let merged = book.merged();
+
+        /*
+         * Then
+         */
+        assert_eq!(merged, View{
+            spread: dec!(0.5),
+            bids:vec![
+                Bid::new(dec!(10.5), dec!(2)),
+                Bid::new(dec!(10), dec!(1)),
+                Bid::new(dec!(9.5), dec!(2)),
+                Bid::new(dec!(9), dec!(1)),
+                Bid::new(dec!(8.5), dec!(2)),
+                Bid::new(dec!(8), dec!(1)),
+                Bid::new(dec!(7.5), dec!(2)),
+                Bid::new(dec!(7), dec!(1)),
+                Bid::new(dec!(6.5), dec!(2)),
+                Bid::new(dec!(6), dec!(1)),
+            ],
+            asks: vec![
+                Ask::new(dec!(11), dec!(1)),
+                Ask::new(dec!(11.5), dec!(2)),
+                Ask::new(dec!(12), dec!(1)),
+                Ask::new(dec!(12.5), dec!(2)),
+                Ask::new(dec!(13), dec!(1)),
+                Ask::new(dec!(13.5), dec!(2)),
+                Ask::new(dec!(14), dec!(1)),
+                Ask::new(dec!(14.5), dec!(2)),
+                Ask::new(dec!(15), dec!(1)),
+                Ask::new(dec!(15.5), dec!(2)),
+            ],
+        });
+    }
+
 }

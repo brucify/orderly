@@ -6,7 +6,7 @@ use orderly::orderly;
 #[derive(Parser)]
 struct Cli {
     #[clap(short, long, help = "Currency pair to subscribe to. Default: ethbtc")]
-    currency: Option<String>,
+    symbol: Option<String>,
 
 }
 
@@ -14,8 +14,8 @@ struct Cli {
 async fn main() {
     env_logger::init();
     let args = Cli::parse();
-    let currency: String = args.currency.unwrap_or("ethbtc".to_string());
+    let symbol: String = args.symbol.unwrap_or("ethbtc".to_string());
 
-    orderly::run(&currency).await;
+    orderly::run(&symbol).await.unwrap();
 }
 

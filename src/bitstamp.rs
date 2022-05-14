@@ -1,13 +1,13 @@
 use chrono::{DateTime, Utc};
 use crate::error::Error;
 use crate::orderbook::{Ask, Bid, Exchange, Tick, ToTick};
-use futures::{SinkExt, StreamExt};
+use futures::SinkExt;
 use log::{debug, info};
 use serde::{Deserialize, Serialize};
 use tokio::net::TcpStream;
 use tokio_tungstenite::{MaybeTlsStream, WebSocketStream};
 use tungstenite::protocol::Message;
-use url::Url;
+use crate::websocket;
 
 const BITSTAMP_WS_URL: &str = "wss://ws.bitstamp.net";
 
@@ -37,15 +37,23 @@ impl ToTick for Event {
     /// Converts the `Event` into a `Option<Tick>`. Only keep the top ten levels of bids and asks.
     fn maybe_to_tick(&self) -> Option<Tick> {
         match self {
-            Event::Data { data, channel } =>
+            Event::Data { data, .. } => {
+                let depth = 10;
+                let bids = match data.bids.len() > depth {
+                    true => data.bids.split_at(depth).0.to_vec(), // only keep 10
+                    false => data.bids.clone(),
+                };
+                let asks = match data.asks.len() > depth {
+                    true => data.asks.split_at(depth).0.to_vec(), // only keep 10
+                    false => data.asks.clone(),
+                };
+
                 Some(Tick {
                     exchange: Exchange::Bitstamp,
-                    channel: channel.clone(),
-                    timestamp: data.timestamp,
-                    microtimestamp: data.microtimestamp,
-                    bids: data.bids.split_at(10).0.to_vec(), // only keep 10
-                    asks: data.asks.split_at(10).0.to_vec(), // only keep 10
-                }),
+                    bids,
+                    asks,
+                })
+            }
             _ => None,
         }
     }
@@ -79,12 +87,10 @@ struct InError {
 
 type Channel = String;
 
-pub(crate) async fn ws_stream() -> WebSocketStream<MaybeTlsStream<TcpStream>> {
-    let url = Url::parse(BITSTAMP_WS_URL).unwrap();
-    let (ws_stream, _) =
-        tokio_tungstenite::connect_async(url).await.expect("Failed to connect");
-    info!("Successfully connected to {}", BITSTAMP_WS_URL);
-    ws_stream
+pub(crate) async fn connect(symbol: &String) -> Result<WebSocketStream<MaybeTlsStream<TcpStream>>, Error> {
+    let mut ws_stream = websocket::connect(BITSTAMP_WS_URL).await?;
+    subscribe(&mut ws_stream, symbol).await?;
+    Ok(ws_stream)
 }
 
 pub(crate) fn parse(ws_msg: Option<Result<Message, tungstenite::Error>>) -> Result<Option<Tick>, Error> {
@@ -96,7 +102,11 @@ pub(crate) fn parse(ws_msg: Option<Result<Message, tungstenite::Error>>) -> Resu
         Message::Binary(x) => { info!("binary {:?}", x); None },
         Message::Text(x) => {
             let e= deserialize(x)?;
-            if let Event::Data{..} = e {} else { debug!("{:?}", e); }
+            if let Event::Data{..} = e {
+                debug!("{:?}", e);
+            } else {
+                info!("{:?}", e);
+            }
             Some(e)
         },
         Message::Ping(x) => { info!("Ping {:?}", x); None },
@@ -107,12 +117,12 @@ pub(crate) fn parse(ws_msg: Option<Result<Message, tungstenite::Error>>) -> Resu
     Ok(e.map(|e| e.maybe_to_tick()).flatten())
 }
 
-pub(crate) async fn subscribe(
+async fn subscribe (
     rx: &mut WebSocketStream<MaybeTlsStream<TcpStream>>,
-    channel: &String,
+    symbol: &String,
 ) -> Result<(), Error>
 {
-    let channel = format!("order_book_{}", channel.to_lowercase());
+    let channel = format!("order_book_{}", symbol.to_lowercase());
     let msg = serialize(Event::Subscribe{ data: OutSubscription { channel } })?;
     rx.send(Message::Text(msg)).await?;
     Ok(())
@@ -124,14 +134,6 @@ fn deserialize(s: String) -> serde_json::Result<Event> {
 
 fn serialize(e: Event) -> serde_json::Result<String> {
     Ok(serde_json::to_string(&e)?)
-}
-
-pub(crate) async fn close(ws_stream: &mut WebSocketStream<MaybeTlsStream<TcpStream>>) {
-    let _ = ws_stream.send(Message::Close(None)).await;
-    let close = ws_stream.next().await;
-    debug!("server close msg: {:?}", close);
-    assert!(ws_stream.next().await.is_none());
-    let _ = ws_stream.close(None).await;
 }
 
 mod timestamp {
