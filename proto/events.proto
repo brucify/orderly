@@ -1,0 +1,26 @@
+syntax = "proto3";
+package events;
+
+service Orderly {
+  rpc OrderBook (OrderlyOrderBookRequest) returns (OrderlyOrderBookResponse);
+}
+
+message OrderlyOrderBookRequest {}
+
+message OrderlyOrderBookResponse {
+  string spread = 1;
+  repeated Bid bids = 2;
+  repeated Ask asks = 3;
+}
+
+message Bid {
+  string price = 1;
+  string amount = 2;
+  string exchange = 3;
+}
+
+message Ask {
+  string price = 1;
+  string amount = 2;
+  string exchange = 3;
+}

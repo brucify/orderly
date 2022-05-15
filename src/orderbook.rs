@@ -20,11 +20,20 @@ pub(crate) enum Exchange {
     Binance,
 }
 
+impl ToString for Exchange {
+    fn to_string(&self) -> String {
+        match self {
+            Exchange::Bitstamp => "bitstamp".to_string(),
+            Exchange::Binance => "binance".to_string(),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Ord, PartialOrd, Eq, PartialEq)]
 pub(crate) struct Bid {
-    price: Decimal,
-    amount: Decimal,
-    exchange: Exchange,
+    pub(crate) price: Decimal,
+    pub(crate) amount: Decimal,
+    pub(crate) exchange: Exchange,
 }
 
 impl Bid {
@@ -35,9 +44,9 @@ impl Bid {
 
 #[derive(Debug, Clone, Ord, PartialOrd, Eq, PartialEq)]
 pub(crate) struct Ask {
-    price: Decimal,
-    amount: Decimal,
-    exchange: Exchange,
+    pub(crate) price: Decimal,
+    pub(crate) amount: Decimal,
+    pub(crate) exchange: Exchange,
 }
 
 impl Ask {
@@ -47,22 +56,22 @@ impl Ask {
 }
 
 #[derive(Debug, PartialEq)]
-pub(crate) struct MainOrderBook {
-    bitstamp: OrderBook,
-    binance: OrderBook,
+pub(crate) struct Exchanges {
+    bitstamp: OrderDepths,
+    binance: OrderDepths,
 }
 
-impl MainOrderBook {
-    pub(crate) fn new() -> MainOrderBook {
-        MainOrderBook {
-            bitstamp: OrderBook::new(),
-            binance: OrderBook::new(),
+impl Exchanges {
+    pub(crate) fn new() -> Exchanges {
+        Exchanges {
+            bitstamp: OrderDepths::new(),
+            binance: OrderDepths::new(),
         }
     }
 
     /// Extracts the bids and asks from the `Tick`, then adds into its corresponding
     /// orderbook of the exchange.
-    pub(crate) fn add(&mut self, t: Tick) {
+    pub(crate) fn update(&mut self, t: Tick) {
         // let bids = t.bids.iter()
         //     .map(|b| (b.price, b.amount))
         //     .collect::<BTreeMap<Decimal, Decimal>>();
@@ -83,7 +92,7 @@ impl MainOrderBook {
     }
 
     /// Returns a new `OrderBook` containing the merge bids and asks from both orderbooks.
-    pub(crate) fn merged(&self) -> View {
+    pub(crate) fn order_book(&self) -> OrderBook {
         // let mut bids = self.bitstamp.bids.clone();
         // bids.merge(self.binance.bids.clone());
         // let mut asks = self.bitstamp.asks.clone();
@@ -122,21 +131,21 @@ impl MainOrderBook {
             (_, _) => dec!(0)
         };
 
-        View{ spread, bids, asks }
+        OrderBook { spread, bids, asks }
     }
 }
 
 #[derive(Debug, PartialEq)]
-struct OrderBook {
+struct OrderDepths {
     // pub(crate) bids: BTreeMap<Decimal, Decimal>,
     // pub(crate) asks: BTreeMap<Decimal, Decimal>,
-    pub(crate) bids: Vec<Bid>,
-    pub(crate) asks: Vec<Ask>,
+    bids: Vec<Bid>,
+    asks: Vec<Ask>,
 }
 
-impl OrderBook {
-    fn new() -> OrderBook {
-        OrderBook{
+impl OrderDepths {
+    fn new() -> OrderDepths {
+        OrderDepths {
             // bids: BTreeMap::new(),
             // asks: BTreeMap::new(),
             bids: vec![],
@@ -181,10 +190,20 @@ impl OrderBook {
 // }
 
 #[derive(Debug, PartialEq)]
-pub(crate) struct View {
-    spread: Decimal,
-    bids: Vec<Bid>,
-    asks: Vec<Ask>,
+pub(crate) struct OrderBook {
+    pub(crate) spread: Decimal,
+    pub(crate) bids: Vec<Bid>,
+    pub(crate) asks: Vec<Ask>,
+}
+
+impl OrderBook {
+    pub(crate) fn new() -> OrderBook {
+        OrderBook {
+            spread: Default::default(),
+            bids: vec![],
+            asks: vec![]
+        }
+    }
 }
 
 pub(crate) fn channel() -> (UnboundedSender<Tick>, UnboundedReceiver<Tick>) {
@@ -202,7 +221,7 @@ mod test {
         /*
          * Given
          */
-        let mut book = MainOrderBook::new();
+        let mut exchanges = Exchanges::new();
         let t = Tick{
             exchange: Exchange::Bitstamp,
             bids: vec![
@@ -234,13 +253,13 @@ mod test {
         /*
          * When
          */
-        book.add(t);
+        exchanges.update(t);
 
         /*
          * Then
          */
-        assert_eq!(book, MainOrderBook {
-            bitstamp: OrderBook{
+        assert_eq!(exchanges, Exchanges {
+            bitstamp: OrderDepths {
                 // bids: BTreeMap::from([
                 //     (dec!(0.07358322), dec!(0.46500000)),
                 //     (dec!(0.07357954), dec!(8.50000000)),
@@ -290,7 +309,7 @@ mod test {
                     Ask::new(dec!(0.07377938), dec!(0.00275807), Exchange::Bitstamp),
                 ],
             },
-            binance: OrderBook::new(),
+            binance: OrderDepths::new(),
         });
     }
 
@@ -299,7 +318,7 @@ mod test {
         /*
          * Given
          */
-        let mut book = MainOrderBook::new();
+        let mut exchanges = Exchanges::new();
         let t1 = Tick{
             exchange: Exchange::Bitstamp,
             bids: vec![
@@ -354,18 +373,18 @@ mod test {
                 Ask::new(dec!(20.5), dec!(2), Exchange::Binance),
             ]
         };
-        book.add(t1);
-        book.add(t2);
+        exchanges.update(t1);
+        exchanges.update(t2);
 
         /*
          * When
          */
-        let merged = book.merged();
+        let order_book = exchanges.order_book();
 
         /*
          * Then
          */
-        assert_eq!(merged, View{
+        assert_eq!(order_book, OrderBook {
             spread: dec!(0.5),
             bids:vec![
                 Bid::new(dec!(10.5), dec!(2), Exchange::Binance),

@@ -4,7 +4,12 @@ pub enum Error {
 
     BadData(serde_json::Error),
 
-    Io(std::io::Error),
+    IoError(std::io::Error),
+
+    ServerError(tonic::transport::Error),
+
+    BadAddr(std::net::AddrParseError),
+
 }
 
 impl From<tungstenite::Error> for Error {
@@ -21,6 +26,19 @@ impl From<serde_json::Error> for Error {
 
 impl From<std::io::Error> for Error {
     fn from(e: std::io::Error) -> Self {
-        Self::Io(e)
+        Self::IoError(e)
     }
 }
+
+impl From<tonic::transport::Error> for Error {
+    fn from(e: tonic::transport::Error) -> Self {
+        Self::ServerError(e)
+    }
+}
+
+impl From<std::net::AddrParseError> for Error {
+    fn from(e: std::net::AddrParseError) -> Self {
+        Self::BadAddr(e)
+    }
+}
+
