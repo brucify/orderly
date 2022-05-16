@@ -1,6 +1,5 @@
 mod binance;
 mod bitstamp;
-mod client;
 mod error;
 mod grpc;
 mod orderbook;

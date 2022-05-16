@@ -9,12 +9,12 @@ use std::sync::Arc;
 use tokio::sync::{RwLock, watch};
 use tungstenite::protocol::Message;
 
-pub async fn run(symbol: &String) -> Result<(), Error> {
+pub async fn run(symbol: &String, port: usize) -> Result<(), Error> {
     let connector = Connector::new();
     let service = OrderBookService::new(connector.out_ticks.clone());
 
     tokio::spawn(async move {
-        service.serve().await.expect("Failed to serve grpc");
+        service.serve(port).await.expect("Failed to serve grpc");
     });
 
     connector.run(symbol).await?;

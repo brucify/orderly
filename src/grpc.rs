@@ -21,13 +21,14 @@ impl OrderBookService {
         OrderBookService { out_ticks }
     }
 
-    pub(crate) async fn serve(self) -> Result<(), Error>{
-        let addr = "[::1]:50051".parse()?;
+    pub(crate) async fn serve(self, port: usize) -> Result<(), Error>{
+        let addr = format!("[::1]:{}", port);
+        let addr = addr.parse()?;
 
         info!("Serving grpc at {}", addr);
 
         Server::builder()
-            .add_service(proto::order_book_server::OrderBookServer::new(self))
+            .add_service(proto::orderbook_aggregator_server::OrderbookAggregatorServer::new(self))
             .serve(addr)
             .await?;
 
@@ -41,54 +42,54 @@ impl OrderBookService {
     }
 }
 
-impl From<OutTick> for proto::OrderBookCheckResponse {
+impl From<OutTick> for proto::Summary {
     fn from(out_tick: OutTick) -> Self {
         let spread = out_tick.spread.to_string();
 
-        let bids: Vec<proto::Bid> = out_tick.bids.iter()
-            .map(|b| proto::Bid{
+        let bids: Vec<proto::Level> = out_tick.bids.iter()
+            .map(|b| proto::Level{
                 price: b.price.to_string(),
                 amount: b.amount.to_string(),
                 exchange: b.exchange.to_string(),
             })
             .collect();
 
-        let asks: Vec<proto::Ask> = out_tick.asks.iter()
-            .map(|a| proto::Ask{
+        let asks: Vec<proto::Level> = out_tick.asks.iter()
+            .map(|a| proto::Level{
                 price: a.price.to_string(),
                 amount: a.amount.to_string(),
                 exchange: a.exchange.to_string(),
             })
             .collect();
 
-        proto::OrderBookCheckResponse{ spread, bids, asks }
+        proto::Summary{ spread, bids, asks }
     }
 }
 
 #[tonic::async_trait]
-impl proto::order_book_server::OrderBook for OrderBookService {
+impl proto::orderbook_aggregator_server::OrderbookAggregator for OrderBookService {
     async fn check(
         &self,
-        request: Request<proto::OrderBookCheckRequest>
-    ) -> Result<Response<proto::OrderBookCheckResponse>, Status> {
+        request: Request<proto::Empty>
+    ) -> Result<Response<proto::Summary>, Status> {
         info!("Got a request: {:?}", request);
 
         let _req = request.into_inner();
 
         let out_tick = self.out_tick().await;
 
-        let reply = proto::OrderBookCheckResponse::from(out_tick);
+        let reply = proto::Summary::from(out_tick);
 
         Ok(Response::new(reply))
     }
 
-    type WatchStream =
-        Pin<Box<dyn Stream<Item = Result<proto::OrderBookCheckResponse, Status>> + Send + 'static>>;
+    type BookSummaryStream =
+        Pin<Box<dyn Stream<Item = Result<proto::Summary, Status>> + Send + 'static>>;
 
-    async fn watch(
+    async fn book_summary(
         &self,
-        request: Request<proto::OrderBookCheckRequest>,
-    ) -> Result<Response<Self::WatchStream>, Status> {
+        request: Request<proto::Empty>,
+    ) -> Result<Response<Self::BookSummaryStream>, Status> {
         info!("Got a request: {:?}", request);
 
         let _req = request.into_inner();
@@ -98,14 +99,14 @@ impl proto::order_book_server::OrderBook for OrderBookService {
         let output = async_stream::try_stream! {
             // yield the current value
             let out_tick = rx_out_ticks.borrow().clone();
-            yield proto::OrderBookCheckResponse::from(out_tick);
+            yield proto::Summary::from(out_tick);
 
             while let Ok(_) = rx_out_ticks.changed().await {
                 let out_tick = rx_out_ticks.borrow().clone();
-                yield proto::OrderBookCheckResponse::from(out_tick);
+                yield proto::Summary::from(out_tick);
             }
         };
 
-        Ok(Response::new(Box::pin(output) as Self::WatchStream))
+        Ok(Response::new(Box::pin(output) as Self::BookSummaryStream))
     }
 }

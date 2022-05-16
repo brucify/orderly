@@ -1,25 +1,37 @@
+use clap::Parser;
 use log::info;
-use proto::order_book_client::OrderBookClient;
+use proto::orderbook_aggregator_client::OrderbookAggregatorClient;
 
 pub mod proto {
     tonic::include_proto!("orderbook");
+}
+
+/// Connects to the gRPC server and streams the orderbook summary.
+#[derive(Parser)]
+struct Cli {
+    #[clap(short, long, help = "(Optional) Port number of the gRPC server. Default: 50051")]
+    port: Option<usize>,
 }
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     env_logger::init();
 
-    let mut client = OrderBookClient::connect("http://[::1]:50051").await?;
+    let args = Cli::parse();
+    let port: usize = args.port.unwrap_or(50051);
+    let addr = format!("http://[::1]:{}", port);
 
-    let request = tonic::Request::new(proto::OrderBookCheckRequest {});
+    let mut client = OrderbookAggregatorClient::connect(addr).await?;
+
+    let request = tonic::Request::new(proto::Empty {});
 
     // let response = client.check(request).await?;
-    // info!("RESPONSE={:?}", response);
+    // info!("{:?}", response);
 
-    let mut response = client.watch(request).await?.into_inner();
+    let mut response = client.book_summary(request).await?.into_inner();
     // listening to stream
     while let Some(res) = response.message().await? {
-        info!("RESPONSE = {:?}", res);
+        info!("{:?}", res);
     }
 
     Ok(())

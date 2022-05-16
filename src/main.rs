@@ -1,12 +1,15 @@
 use clap::Parser;
 use orderly::orderly;
 
-/// Connects to WebSocket feeds of exchanges. Pulls order book for the given currency pair
-/// Publishes a merged order book as a stream.
+/// Pulls order depths for the given currency pair from the WebSocket feeds of multiple exchanges.
+/// Publishes a merged order book as a gRPC stream.
 #[derive(Parser)]
 struct Cli {
-    #[clap(short, long, help = "Currency pair to subscribe to. Default: ethbtc")]
+    #[clap(short, long, help = "(Optional) Currency pair to subscribe to. Default: ethbtc")]
     symbol: Option<String>,
+
+    #[clap(short, long, help = "(Optional) Port number on which the the gRPC server will be hosted. Default: 50051")]
+    port: Option<usize>,
 
 }
 
@@ -15,7 +18,8 @@ async fn main() {
     env_logger::init();
     let args = Cli::parse();
     let symbol: String = args.symbol.unwrap_or("ethbtc".to_string());
+    let port: usize = args.port.unwrap_or(50051);
 
-    orderly::run(&symbol).await.unwrap();
+    orderly::run(&symbol, port).await.unwrap();
 }
 
