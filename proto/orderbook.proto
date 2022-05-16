@@ -1,13 +1,13 @@
 syntax = "proto3";
-package events;
+package orderbook;
 
-service Orderly {
-  rpc OrderBook (OrderlyOrderBookRequest) returns (OrderlyOrderBookResponse);
+service OrderBook {
+  rpc Check (OrderBookCheckRequest) returns (OrderBookCheckResponse);
 }
 
-message OrderlyOrderBookRequest {}
+message OrderBookCheckRequest {}
 
-message OrderlyOrderBookResponse {
+message OrderBookCheckResponse {
   string spread = 1;
   repeated Bid bids = 2;
   repeated Ask asks = 3;

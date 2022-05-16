@@ -1,24 +1,22 @@
 use crate::error::Error;
 use crate::orderbook::OrderBook;
-use events::orderly_server::{Orderly, OrderlyServer};
-use events::{OrderlyOrderBookRequest, OrderlyOrderBookResponse, Bid, Ask};
 use log::info;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 use tonic::transport::Server;
 use tonic::{Request, Response, Status};
 
-pub mod events {
-    tonic::include_proto!("events");
+pub mod proto {
+    tonic::include_proto!("orderbook");
 }
 
-pub struct OrderlyService {
+pub struct OrderBookService {
     order_book: Arc<RwLock<OrderBook>>
 }
 
-impl OrderlyService {
-    pub(crate) fn new(order_book: Arc<RwLock<OrderBook>>) -> OrderlyService {
-        OrderlyService{ order_book }
+impl OrderBookService {
+    pub(crate) fn new(order_book: Arc<RwLock<OrderBook>>) -> OrderBookService {
+        OrderBookService { order_book }
     }
 
     pub(crate) async fn serve(self) -> Result<(), Error>{
@@ -27,7 +25,7 @@ impl OrderlyService {
         info!("Serving grpc at {}", addr);
 
         Server::builder()
-            .add_service(OrderlyServer::new(self))
+            .add_service(proto::order_book_server::OrderBookServer::new(self))
             .serve(addr)
             .await?;
 
@@ -36,11 +34,11 @@ impl OrderlyService {
 }
 
 #[tonic::async_trait()]
-impl Orderly for OrderlyService {
-    async fn order_book(
+impl proto::order_book_server::OrderBook for OrderBookService {
+    async fn check(
         &self,
-        request: Request<OrderlyOrderBookRequest>
-    ) -> Result<Response<OrderlyOrderBookResponse>, Status> {
+        request: Request<proto::OrderBookCheckRequest>
+    ) -> Result<Response<proto::OrderBookCheckResponse>, Status> {
         info!("Got a request: {:?}", request);
 
         let _req = request.into_inner();
@@ -50,22 +48,22 @@ impl Orderly for OrderlyService {
         let spread = order_book.spread.to_string();
 
         let bids = order_book.bids.iter()
-            .map(|b| Bid{
+            .map(|b| proto::Bid{
                 price: b.price.to_string(),
                 amount: b.amount.to_string(),
                 exchange: b.exchange.to_string(),
             })
-            .collect::<Vec<Bid>>();
+            .collect::<Vec<proto::Bid>>();
 
         let asks = order_book.asks.iter()
-            .map(|a| Ask{
+            .map(|a| proto::Ask{
                 price: a.price.to_string(),
                 amount: a.amount.to_string(),
                 exchange: a.exchange.to_string(),
             })
-            .collect::<Vec<Ask>>();
+            .collect::<Vec<proto::Ask>>();
 
-        let reply = OrderlyOrderBookResponse{ spread, bids, asks };
+        let reply = proto::OrderBookCheckResponse{ spread, bids, asks };
 
         Ok(Response::new(reply))
     }

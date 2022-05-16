@@ -1,5 +1,5 @@
 use crate::error::Error;
-use crate::grpc_server::OrderlyService;
+use crate::grpc_server::OrderBookService;
 use crate::orderbook::{Exchanges, OrderBook};
 use crate::{bitstamp, stdin, orderbook, binance, websocket};
 use futures::{SinkExt, StreamExt};
@@ -11,7 +11,7 @@ use tungstenite::protocol::Message;
 
 pub async fn run(symbol: &String) -> Result<(), Error> {
     let connector = Connector::new();
-    let service = OrderlyService::new(connector.order_book.clone());
+    let service = OrderBookService::new(connector.order_book.clone());
 
     tokio::spawn(async move {
         service.serve().await.expect("Failed to serve grpc");
