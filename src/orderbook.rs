@@ -1,7 +1,6 @@
 use futures::channel::mpsc::{UnboundedReceiver, UnboundedSender};
 use rust_decimal::Decimal;
 use rust_decimal_macros::dec;
-// use std::collections::BTreeMap;
 
 #[derive(Debug)]
 pub(crate) struct InTick {
@@ -89,13 +88,6 @@ impl Exchanges {
     /// Extracts the bids and asks from the `Tick`, then adds into its corresponding
     /// orderbook of the exchange.
     pub(crate) fn update(&mut self, t: InTick) {
-        // let bids = t.bids.iter()
-        //     .map(|b| (b.price, b.amount))
-        //     .collect::<BTreeMap<Decimal, Decimal>>();
-        // let asks = t.asks.iter()
-        //     .map(|b| (b.price, b.amount))
-        //     .collect::<BTreeMap<Decimal, Decimal>>();
-
         match t.exchange {
             Exchange::Bitstamp => {
                 self.bitstamp.bids = t.bids;
@@ -110,22 +102,6 @@ impl Exchanges {
 
     /// Returns a new `OutTick` containing the merge bids and asks from both orderbooks.
     pub(crate) fn to_tick(&self) -> OutTick {
-        // let mut bids = self.bitstamp.bids.clone();
-        // bids.merge(self.binance.bids.clone());
-        // let mut asks = self.bitstamp.asks.clone();
-        // asks.merge(self.binance.asks.clone());
-        //
-        // let bids = bids.iter()
-        //     .map(|(k, v)| Bid::new(k.clone(), v.clone()))
-        //     .rev()
-        //     .take(10)
-        //     .collect::<Vec<Bid>>();
-        //
-        // let asks = asks.iter()
-        //     .map(|(k, v)| Ask::new(k.clone(), v.clone()))
-        //     .take(10)
-        //     .collect::<Vec<Ask>>();
-
         let mut bids: Vec<Bid> = self.bitstamp.bids.clone().into_iter()
             .chain(self.binance.bids.clone())
             .collect();
@@ -154,8 +130,6 @@ impl Exchanges {
 
 #[derive(Debug, PartialEq)]
 struct OrderDepths {
-    // pub(crate) bids: BTreeMap<Decimal, Decimal>,
-    // pub(crate) asks: BTreeMap<Decimal, Decimal>,
     bids: Vec<Bid>,
     asks: Vec<Ask>,
 }
@@ -163,49 +137,11 @@ struct OrderDepths {
 impl OrderDepths {
     fn new() -> OrderDepths {
         OrderDepths {
-            // bids: BTreeMap::new(),
-            // asks: BTreeMap::new(),
             bids: vec![],
             asks: vec![],
         }
     }
 }
-
-// trait Merge {
-//     fn merge(
-//         &mut self,
-//         other: BTreeMap<Decimal, Decimal>,
-//     );
-//
-//     fn merge_and_keep(
-//         &mut self,
-//         other: BTreeMap<Decimal, Decimal>,
-//         index: usize,
-//     );
-// }
-//
-// impl Merge for BTreeMap<Decimal, Decimal> {
-//     /// Same as `BTreeMap::extend` but increments the value instead of replacing it
-//     /// in case of a duplicate key.
-//     fn merge(&mut self, other: BTreeMap<Decimal, Decimal>) {
-//         other.into_iter().for_each(move |(k, v)| {
-//             match self.get_mut(&k) {
-//                 None => { self.insert(k, v); },
-//                 Some(x) => *x += v, // increment instead of replace
-//             }
-//         });
-//     }
-//
-//     /// Merges two `BTreeMap`. Returns everything before the given index.
-//     fn merge_and_keep(&mut self, other: BTreeMap<Decimal, Decimal>, i: usize) {
-//         self.merge(other);
-//         if self.len() > i {
-//             let key = self.keys().collect::<Vec<&Decimal>>()[i].clone();
-//             self.split_off(&key);
-//         }
-//     }
-// }
-
 
 pub(crate) fn channel() -> (UnboundedSender<InTick>, UnboundedReceiver<InTick>) {
     futures::channel::mpsc::unbounded()
@@ -215,7 +151,6 @@ pub(crate) fn channel() -> (UnboundedSender<InTick>, UnboundedReceiver<InTick>) 
 mod test {
     use crate::orderbook::*;
     use rust_decimal_macros::dec;
-    // use std::collections::BTreeMap;
 
     #[test]
     fn should_add_bitstamp_tick_to_empty() {
@@ -261,30 +196,6 @@ mod test {
          */
         assert_eq!(exchanges, Exchanges {
             bitstamp: OrderDepths {
-                // bids: BTreeMap::from([
-                //     (dec!(0.07358322), dec!(0.46500000)),
-                //     (dec!(0.07357954), dec!(8.50000000)),
-                //     (dec!(0.07357942), dec!(0.46500000)),
-                //     (dec!(0.07357869), dec!(16.31857550)),
-                //     (dec!(0.07357533), dec!(2.17483368)),
-                //     (dec!(0.07354592), dec!(10.22442936)),
-                //     (dec!(0.07354227), dec!(4.34696532)),
-                //     (dec!(0.07352810), dec!(20.01159075)),
-                //     (dec!(0.07350019), dec!(21.73733228)),
-                //     (dec!(0.07348180), dec!(1.85000000)),
-                // ]),
-                // asks: BTreeMap::from([
-                //     (dec!(0.07366569), dec!(0.46500000)),
-                //     (dec!(0.07368584), dec!(16.30832712)),
-                //     (dec!(0.07371456), dec!(2.17501178)),
-                //     (dec!(0.07373077), dec!(4.35024244)),
-                //     (dec!(0.07373618), dec!(8.50000000)),
-                //     (dec!(0.07374400), dec!(1.85000000)),
-                //     (dec!(0.07375536), dec!(11.31202728)),
-                //     (dec!(0.07375625), dec!(6.96131361)),
-                //     (dec!(0.07375736), dec!(0.00275804)),
-                //     (dec!(0.07377938), dec!(0.00275807)),
-                // ]),
                 bids: vec![
                     Bid::new(dec!(0.07358322), dec!(0.46500000), Exchange::Bitstamp),
                     Bid::new(dec!(0.07357954), dec!(8.50000000), Exchange::Bitstamp),
