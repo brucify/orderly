@@ -1,5 +1,5 @@
-use proto::order_book_client::OrderBookClient;
 use log::info;
+use proto::order_book_client::OrderBookClient;
 
 pub mod proto {
     tonic::include_proto!("orderbook");
@@ -13,9 +13,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let request = tonic::Request::new(proto::OrderBookCheckRequest {});
 
-    let response = client.check(request).await?;
+    // let response = client.check(request).await?;
+    // info!("RESPONSE={:?}", response);
 
-    info!("RESPONSE={:?}", response);
+    let mut response = client.watch(request).await?.into_inner();
+    // listening to stream
+    while let Some(res) = response.message().await? {
+        info!("RESPONSE = {:?}", res);
+    }
 
     Ok(())
 }

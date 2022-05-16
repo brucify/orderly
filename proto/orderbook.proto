@@ -3,6 +3,8 @@ package orderbook;
 
 service OrderBook {
   rpc Check (OrderBookCheckRequest) returns (OrderBookCheckResponse);
+
+  rpc Watch (OrderBookCheckRequest) returns (stream OrderBookCheckResponse);
 }
 
 message OrderBookCheckRequest {}

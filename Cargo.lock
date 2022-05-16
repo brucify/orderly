@@ -774,6 +774,7 @@ dependencies = [
 name = "orderly"
 version = "0.1.0"
 dependencies = [
+ "async-stream",
  "chrono",
  "clap",
  "env_logger",

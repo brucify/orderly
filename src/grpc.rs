@@ -1,7 +1,9 @@
 use crate::error::Error;
 use crate::orderbook::OutTick;
 use crate::orderly::OutTickPair;
+use futures::Stream;
 use log::info;
+use std::pin::Pin;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 use tonic::{transport::Server, Request, Response, Status};
@@ -78,5 +80,32 @@ impl proto::order_book_server::OrderBook for OrderBookService {
         let reply = proto::OrderBookCheckResponse::from(out_tick);
 
         Ok(Response::new(reply))
+    }
+
+    type WatchStream =
+        Pin<Box<dyn Stream<Item = Result<proto::OrderBookCheckResponse, Status>> + Send + 'static>>;
+
+    async fn watch(
+        &self,
+        request: Request<proto::OrderBookCheckRequest>,
+    ) -> Result<Response<Self::WatchStream>, Status> {
+        info!("Got a request: {:?}", request);
+
+        let _req = request.into_inner();
+
+        let mut rx_out_ticks = self.out_ticks.read().await.1.clone();
+
+        let output = async_stream::try_stream! {
+            // yield the current value
+            let out_tick = rx_out_ticks.borrow().clone();
+            yield proto::OrderBookCheckResponse::from(out_tick);
+
+            while let Ok(_) = rx_out_ticks.changed().await {
+                let out_tick = rx_out_ticks.borrow().clone();
+                yield proto::OrderBookCheckResponse::from(out_tick);
+            }
+        };
+
+        Ok(Response::new(Box::pin(output) as Self::WatchStream))
     }
 }
