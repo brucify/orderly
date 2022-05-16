@@ -3,6 +3,7 @@ use crate::orderbook::OutTick;
 use crate::orderly::OutTickPair;
 use futures::Stream;
 use log::info;
+use rust_decimal::prelude::ToPrimitive;
 use std::pin::Pin;
 use std::sync::Arc;
 use tokio::sync::RwLock;
@@ -44,21 +45,21 @@ impl OrderBookService {
 
 impl From<OutTick> for proto::Summary {
     fn from(out_tick: OutTick) -> Self {
-        let spread = out_tick.spread.to_string();
+        let spread = out_tick.spread.to_f64().unwrap();
 
         let bids: Vec<proto::Level> = out_tick.bids.iter()
             .map(|b| proto::Level{
-                price: b.price.to_string(),
-                amount: b.amount.to_string(),
                 exchange: b.exchange.to_string(),
+                price: b.price.to_f64().unwrap(),
+                amount: b.amount.to_f64().unwrap(),
             })
             .collect();
 
         let asks: Vec<proto::Level> = out_tick.asks.iter()
             .map(|a| proto::Level{
-                price: a.price.to_string(),
-                amount: a.amount.to_string(),
                 exchange: a.exchange.to_string(),
+                price: a.price.to_f64().unwrap(),
+                amount: a.amount.to_f64().unwrap(),
             })
             .collect();
 
