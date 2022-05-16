@@ -1,5 +1,5 @@
 use crate::error::Error;
-use crate::orderbook::{Exchange, Tick, ToTick};
+use crate::orderbook::{Exchange, InTick, ToTick};
 use crate::{orderbook, websocket};
 use log::{debug, info};
 use rust_decimal::Decimal;
@@ -32,7 +32,7 @@ struct Ask {
 
 impl ToTick for Event {
     /// Converts the `Event` into a `Option<Tick>`. Only keep the top ten levels of bids and asks.
-    fn maybe_to_tick(&self) -> Option<Tick> {
+    fn maybe_to_tick(&self) -> Option<InTick> {
         let depth = 10;
         let bids = match self.bids.len() > depth {
             true => self.bids.split_at(depth).0.to_vec(), // only keep 10
@@ -50,7 +50,7 @@ impl ToTick for Event {
             .map(|b| orderbook::Ask::new(b.price, b.amount, Exchange::Binance))
             .collect();
 
-        Some(Tick {
+        Some(InTick {
             exchange: Exchange::Binance,
             bids,
             asks,
@@ -64,7 +64,7 @@ pub(crate) async fn connect(symbol: &String) -> Result<WebSocketStream<MaybeTlsS
     Ok(websocket::connect(url.as_str()).await?)
 }
 
-pub(crate) fn parse(ws_msg: Option<Result<Message, tungstenite::Error>>) -> Result<Option<Tick>, Error> {
+pub(crate) fn parse(ws_msg: Option<Result<Message, tungstenite::Error>>) -> Result<Option<InTick>, Error> {
     let msg = ws_msg.unwrap_or_else(|| {
         info!("no message");
         Err(tungstenite::Error::ConnectionClosed)

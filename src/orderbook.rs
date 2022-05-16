@@ -4,14 +4,31 @@ use rust_decimal_macros::dec;
 // use std::collections::BTreeMap;
 
 #[derive(Debug)]
-pub(crate) struct Tick {
+pub(crate) struct InTick {
     pub(crate) exchange: Exchange,
     pub(crate) bids: Vec<Bid>,
     pub(crate) asks: Vec<Ask>,
 }
 
 pub(crate) trait ToTick {
-    fn maybe_to_tick(&self) -> Option<Tick>;
+    fn maybe_to_tick(&self) -> Option<InTick>;
+}
+
+#[derive(Debug, PartialEq, Clone)]
+pub(crate) struct OutTick {
+    pub(crate) spread: Decimal,
+    pub(crate) bids: Vec<Bid>,
+    pub(crate) asks: Vec<Ask>,
+}
+
+impl OutTick {
+    pub(crate) fn new() -> OutTick {
+        OutTick {
+            spread: Default::default(),
+            bids: vec![],
+            asks: vec![]
+        }
+    }
 }
 
 #[derive(Debug, Clone, Ord, PartialOrd, Eq, PartialEq)]
@@ -71,7 +88,7 @@ impl Exchanges {
 
     /// Extracts the bids and asks from the `Tick`, then adds into its corresponding
     /// orderbook of the exchange.
-    pub(crate) fn update(&mut self, t: Tick) {
+    pub(crate) fn update(&mut self, t: InTick) {
         // let bids = t.bids.iter()
         //     .map(|b| (b.price, b.amount))
         //     .collect::<BTreeMap<Decimal, Decimal>>();
@@ -91,8 +108,8 @@ impl Exchanges {
         }
     }
 
-    /// Returns a new `OrderBook` containing the merge bids and asks from both orderbooks.
-    pub(crate) fn order_book(&self) -> OrderBook {
+    /// Returns a new `OutTick` containing the merge bids and asks from both orderbooks.
+    pub(crate) fn to_tick(&self) -> OutTick {
         // let mut bids = self.bitstamp.bids.clone();
         // bids.merge(self.binance.bids.clone());
         // let mut asks = self.bitstamp.asks.clone();
@@ -131,7 +148,7 @@ impl Exchanges {
             (_, _) => dec!(0)
         };
 
-        OrderBook { spread, bids, asks }
+        OutTick { spread, bids, asks }
     }
 }
 
@@ -189,24 +206,8 @@ impl OrderDepths {
 //     }
 // }
 
-#[derive(Debug, PartialEq)]
-pub(crate) struct OrderBook {
-    pub(crate) spread: Decimal,
-    pub(crate) bids: Vec<Bid>,
-    pub(crate) asks: Vec<Ask>,
-}
 
-impl OrderBook {
-    pub(crate) fn new() -> OrderBook {
-        OrderBook {
-            spread: Default::default(),
-            bids: vec![],
-            asks: vec![]
-        }
-    }
-}
-
-pub(crate) fn channel() -> (UnboundedSender<Tick>, UnboundedReceiver<Tick>) {
+pub(crate) fn channel() -> (UnboundedSender<InTick>, UnboundedReceiver<InTick>) {
     futures::channel::mpsc::unbounded()
 }
 
@@ -222,7 +223,7 @@ mod test {
          * Given
          */
         let mut exchanges = Exchanges::new();
-        let t = Tick{
+        let t = InTick {
             exchange: Exchange::Bitstamp,
             bids: vec![
                 Bid::new(dec!(0.07358322), dec!(0.46500000), Exchange::Bitstamp),
@@ -319,7 +320,7 @@ mod test {
          * Given
          */
         let mut exchanges = Exchanges::new();
-        let t1 = Tick{
+        let t1 = InTick {
             exchange: Exchange::Bitstamp,
             bids: vec![
                 Bid::new(dec!(10), dec!(1), Exchange::Bitstamp),
@@ -346,7 +347,7 @@ mod test {
                 Ask::new(dec!(20), dec!(1), Exchange::Bitstamp),
             ]
         };
-        let t2 = Tick{
+        let t2 = InTick {
             exchange: Exchange::Binance,
             bids: vec![
                 Bid::new(dec!(10.5), dec!(2), Exchange::Binance),
@@ -379,12 +380,12 @@ mod test {
         /*
          * When
          */
-        let order_book = exchanges.order_book();
+        let out_tick = exchanges.to_tick();
 
         /*
          * Then
          */
-        assert_eq!(order_book, OrderBook {
+        assert_eq!(out_tick, OutTick {
             spread: dec!(0.5),
             bids:vec![
                 Bid::new(dec!(10.5), dec!(2), Exchange::Binance),

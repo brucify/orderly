@@ -1,6 +1,6 @@
 use chrono::{DateTime, Utc};
 use crate::error::Error;
-use crate::orderbook::{Exchange, Tick, ToTick};
+use crate::orderbook::{Exchange, InTick, ToTick};
 use futures::SinkExt;
 use log::{debug, info};
 use rust_decimal::Decimal;
@@ -36,7 +36,7 @@ enum Event {
 
 impl ToTick for Event {
     /// Converts the `Event` into a `Option<Tick>`. Only keep the top ten levels of bids and asks.
-    fn maybe_to_tick(&self) -> Option<Tick> {
+    fn maybe_to_tick(&self) -> Option<InTick> {
         match self {
             Event::Data { data, .. } => {
                 let depth = 10;
@@ -56,7 +56,7 @@ impl ToTick for Event {
                     .map(|b| orderbook::Ask::new(b.price, b.amount, Exchange::Bitstamp))
                     .collect();
 
-                Some(Tick {
+                Some(InTick {
                     exchange: Exchange::Bitstamp,
                     bids,
                     asks,
@@ -113,7 +113,7 @@ pub(crate) async fn connect(symbol: &String) -> Result<WebSocketStream<MaybeTlsS
     Ok(ws_stream)
 }
 
-pub(crate) fn parse(ws_msg: Option<Result<Message, tungstenite::Error>>) -> Result<Option<Tick>, Error> {
+pub(crate) fn parse(ws_msg: Option<Result<Message, tungstenite::Error>>) -> Result<Option<InTick>, Error> {
     let msg = ws_msg.unwrap_or_else(|| {
         info!("no message");
         Err(tungstenite::Error::ConnectionClosed)
