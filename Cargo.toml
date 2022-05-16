@@ -17,7 +17,7 @@ rust_decimal = "1.23"
 rust_decimal_macros = "1.23"
 serde = { version = "1.0.137", features = ["derive"] }
 serde_json = "1.0.81"
-tokio = { version = "1.18.1", features = ["full"] }
+tokio = { version = "1.18.1", features = ["macros", "rt-multi-thread"] }
 tokio-tungstenite = { version = "0.17.1", features = ["native-tls"] }
 tonic = "0.7.2"
 tungstenite = "0.17.2"
@@ -29,7 +29,7 @@ path = "src/main.rs"
 
 [[bin]]
 name = "orderly-client"
-path = "src/grpc_client.rs"
+path = "src/client.rs"
 
 [build-dependencies]
 tonic-build = "0.7.2"

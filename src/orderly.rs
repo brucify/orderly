@@ -1,5 +1,5 @@
 use crate::error::Error;
-use crate::grpc_server::OrderBookService;
+use crate::grpc::OrderBookService;
 use crate::orderbook::{Exchanges, OrderBook};
 use crate::{bitstamp, stdin, orderbook, binance, websocket};
 use futures::{SinkExt, StreamExt};

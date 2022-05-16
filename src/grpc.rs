@@ -3,8 +3,7 @@ use crate::orderbook::OrderBook;
 use log::info;
 use std::sync::Arc;
 use tokio::sync::RwLock;
-use tonic::transport::Server;
-use tonic::{Request, Response, Status};
+use tonic::{transport::Server, Request, Response, Status};
 
 pub mod proto {
     tonic::include_proto!("orderbook");
@@ -33,7 +32,7 @@ impl OrderBookService {
     }
 }
 
-#[tonic::async_trait()]
+#[tonic::async_trait]
 impl proto::order_book_server::OrderBook for OrderBookService {
     async fn check(
         &self,

@@ -1,9 +1,9 @@
 mod binance;
 mod bitstamp;
-mod grpc_client;
+mod client;
 mod error;
+mod grpc;
 mod orderbook;
 mod stdin;
 mod websocket;
 pub mod orderly;
-mod grpc_server;
