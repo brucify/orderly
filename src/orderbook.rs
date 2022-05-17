@@ -92,22 +92,18 @@ impl Exchanges {
 
     /// Returns a new `OutTick` containing the merge bids and asks from both orderbooks.
     pub(crate) fn to_tick(&self) -> OutTick {
-        let mut bids: Vec<Level> = self.bitstamp.bids.clone().into_iter()
-            .chain(self.binance.bids.clone())
-            .collect();
-        bids.sort_unstable();
-        let bids: Vec<Level> = bids.into_iter()
-            .rev()
-            .take(10)
-            .collect();
+        let bids: Vec<Level> =
+            Self::merge(self.bitstamp.bids.clone(), self.binance.bids.clone())
+                .into_iter()
+                .rev()
+                .take(10)
+                .collect();
 
-        let mut asks: Vec<Level> = self.bitstamp.asks.clone().into_iter()
-            .chain(self.binance.asks.clone())
-            .collect();
-        asks.sort_unstable();
-        let asks: Vec<Level> = asks.into_iter()
-            .take(10)
-            .collect();
+        let asks: Vec<Level> =
+            Self::merge(self.bitstamp.asks.clone(), self.binance.asks.clone())
+                .into_iter()
+                .take(10)
+                .collect();
 
         let spread = match (bids.first(), asks.first()) {
             (Some(b), Some(a)) => a.price - b.price,
@@ -115,6 +111,15 @@ impl Exchanges {
         };
 
         OutTick { spread, bids, asks }
+    }
+
+    fn merge(first: Vec<Level>, second: Vec<Level>) -> Vec<Level> {
+        let mut levels: Vec<Level> =
+            first.into_iter()
+                .chain(second)
+                .collect();
+        levels.sort_unstable();
+        levels
     }
 }
 
