@@ -3,7 +3,6 @@ use crate::grpc::OrderBookService;
 use crate::orderbook::{Exchanges, OutTick};
 use crate::{bitstamp, stdin, orderbook, binance, websocket};
 use futures::{SinkExt, StreamExt};
-use futures_executor::ThreadPool;
 use log::{debug, info};
 use std::sync::Arc;
 use tokio::sync::{RwLock, watch};
@@ -35,8 +34,6 @@ impl Connector {
     }
 
     async fn run(&self, symbol: &String) -> Result<(), Error> {
-        let pool = ThreadPool::new()?;
-
         let mut ws_bitstamp = bitstamp::connect(symbol).await?;
         let mut ws_binance = binance::connect(symbol).await?;
         let mut rx_stdin = stdin::rx();
@@ -48,32 +45,27 @@ impl Connector {
         loop {
             tokio::select! {
                 ws_msg = ws_bitstamp.next() => {
-                    match bitstamp::parse(ws_msg) {
-                        Ok(t) => {
-                            let tx = tx_in_ticks.clone();
-                            pool.spawn_ok(async move {
-                                t.map(|x|tx.unbounded_send(x).expect("Failed to send"));
-                            });
-                        },
-                        Err(e) => {
-                            info!("Err: {:?}", e);
-                            break
-                        }
+                    let tx = tx_in_ticks.clone();
+
+                    let res = handle(ws_msg).and_then(|msg| {
+                        bitstamp::parse_and_send(msg, tx)
+                    });
+
+                    if let Err(e) = res {
+                        info!("Err: {:?}", e);
+                        break
                     }
                 },
                 ws_msg = ws_binance.next() => {
-                    match binance::parse(ws_msg) {
-                        Ok(t) => {
-                            let tx = tx_in_ticks.clone();
-                            pool.spawn_ok(async move {
-                                t.map(|x|tx.unbounded_send(x).expect("Failed to send"));
-                            });
-                        },
-                        Err(e) => {
-                            info!("Err: {:?}", e);
-                            break
-                        }
+                    let tx = tx_in_ticks.clone();
 
+                    let res = handle(ws_msg).and_then(|msg| {
+                        binance::parse_and_send(msg, tx)
+                    });
+
+                    if let Err(e) = res {
+                        info!("Err: {:?}", e);
+                        break
                     }
                 }
                 stdin_msg = rx_stdin.recv() => {
@@ -111,4 +103,16 @@ impl Connector {
 
         Ok(())
     }
+}
+
+fn handle(
+    ws_msg: Option<Result<Message, tungstenite::Error>>,
+) -> Result<Message, Error>
+{
+    let msg = ws_msg.unwrap_or_else(|| {
+        info!("no message");
+        Err(tungstenite::Error::ConnectionClosed)
+    })?;
+
+    Ok(msg)
 }

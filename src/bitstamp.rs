@@ -1,4 +1,5 @@
 use chrono::{DateTime, Utc};
+use futures::channel::mpsc::UnboundedSender;
 use crate::error::Error;
 use crate::orderbook::{Exchange, InTick, ToTick};
 use futures::SinkExt;
@@ -113,11 +114,22 @@ pub(crate) async fn connect(symbol: &String) -> Result<WebSocketStream<MaybeTlsS
     Ok(ws_stream)
 }
 
-pub(crate) fn parse(ws_msg: Option<Result<Message, tungstenite::Error>>) -> Result<Option<InTick>, Error> {
-    let msg = ws_msg.unwrap_or_else(|| {
-        info!("no message");
-        Err(tungstenite::Error::ConnectionClosed)
-    })?;
+pub(crate) fn parse_and_send(
+    msg: Message,
+    tx: UnboundedSender<InTick>,
+) -> Result<(), Error>
+{
+    parse(msg).and_then(|t| {
+        t.map(|tick| {
+            tokio::spawn(async move {
+                tx.unbounded_send(tick).expect("Failed to send");
+            });
+        });
+        Ok(())
+    })
+}
+
+fn parse(msg: Message) -> Result<Option<InTick>, Error> {
     let e = match msg {
         Message::Binary(x) => { info!("binary {:?}", x); None },
         Message::Text(x) => {

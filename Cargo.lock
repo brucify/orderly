@@ -371,7 +371,6 @@ dependencies = [
  "futures-core",
  "futures-task",
  "futures-util",
- "num_cpus",
 ]
 
 [[package]]
@@ -779,7 +778,6 @@ dependencies = [
  "clap",
  "env_logger",
  "futures",
- "futures-executor",
  "log",
  "prost",
  "rust_decimal",
