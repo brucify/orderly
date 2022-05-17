@@ -1,7 +1,7 @@
 use chrono::{DateTime, Utc};
 use futures::channel::mpsc::UnboundedSender;
 use crate::error::Error;
-use crate::orderbook::{Exchange, InTick, ToTick};
+use crate::orderbook::{Exchange, InTick, ToLevel, ToTick};
 use futures::SinkExt;
 use log::{debug, info};
 use rust_decimal::Decimal;
@@ -51,10 +51,10 @@ impl ToTick for Event {
                 };
 
                 let bids = bids.into_iter()
-                    .map(|b| orderbook::Bid::new(b.price, b.amount, Exchange::Bitstamp))
+                    .map(|b| b.to_level())
                     .collect();
                 let asks = asks.into_iter()
-                    .map(|b| orderbook::Ask::new(b.price, b.amount, Exchange::Bitstamp))
+                    .map(|a| a.to_level())
                     .collect();
 
                 Some(InTick {
@@ -81,8 +81,8 @@ struct InData {
     #[serde(with = "microtimestamp")]
     microtimestamp: DateTime<Utc>,
 
-    bids: Vec<Bid>,
-    asks: Vec<Ask>,
+    bids: Vec<Level>,
+    asks: Vec<Level>,
 }
 
 #[derive(Debug, Deserialize, Serialize, PartialEq)]
@@ -95,15 +95,15 @@ struct InError {
 }
 
 #[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
-struct Bid {
+struct Level {
     price: Decimal,
     amount: Decimal
 }
 
-#[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
-struct Ask {
-    price: Decimal,
-    amount: Decimal
+impl ToLevel for Level {
+    fn to_level(&self) -> orderbook::Level {
+        orderbook::Level::new(self.price, self.amount, Exchange::Bitstamp)
+    }
 }
 
 type Channel = String;
@@ -230,11 +230,11 @@ mod test {
                        data: InData {
                            timestamp: Utc.timestamp(1652103479, 0),
                            microtimestamp: Utc.timestamp_nanos(1652103479857383000),
-                           bids: vec![ Bid { price: dec!(0.07295794), amount: dec!(0.46500000) }
-                                     , Bid { price: dec!(0.07295284), amount: dec!(0.60423006) }
+                           bids: vec![ Level { price: dec!(0.07295794), amount: dec!(0.46500000) }
+                                     , Level { price: dec!(0.07295284), amount: dec!(0.60423006) }
                                      ],
-                           asks: vec![ Ask { price: dec!(0.07301587), amount: dec!(0.46500000) }
-                                     , Ask { price: dec!(0.07301952), amount: dec!(7.74449027) }
+                           asks: vec![ Level { price: dec!(0.07301587), amount: dec!(0.46500000) }
+                                     , Level { price: dec!(0.07301952), amount: dec!(7.74449027) }
                                      ]
                        },
                        channel: "order_book_ethbtc".to_string(),

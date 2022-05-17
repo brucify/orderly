@@ -1,6 +1,6 @@
 use futures::channel::mpsc::UnboundedSender;
 use crate::error::Error;
-use crate::orderbook::{Exchange, InTick, ToTick};
+use crate::orderbook::{Exchange, InTick, ToLevel, ToTick};
 use crate::{orderbook, websocket};
 use log::{debug, info};
 use rust_decimal::Decimal;
@@ -15,20 +15,20 @@ const BINANCE_WS_URL: &str = "wss://stream.binance.com:9443/ws";
 struct Event {
     #[serde(rename = "lastUpdateId")]
     last_update_id: usize,
-    bids: Vec<Bid>,
-    asks: Vec<Ask>,
+    bids: Vec<Level>,
+    asks: Vec<Level>,
 }
 
 #[derive(Debug, Deserialize, PartialEq, Clone)]
-struct Bid {
+struct Level {
     price: Decimal,
     amount: Decimal
 }
 
-#[derive(Debug, Deserialize, PartialEq, Clone)]
-struct Ask {
-    price: Decimal,
-    amount: Decimal
+impl ToLevel for Level {
+    fn to_level(&self) -> orderbook::Level {
+        orderbook::Level::new(self.price, self.amount, Exchange::Binance)
+    }
 }
 
 impl ToTick for Event {
@@ -45,10 +45,10 @@ impl ToTick for Event {
         };
 
         let bids = bids.into_iter()
-            .map(|b| orderbook::Bid::new(b.price, b.amount, Exchange::Binance))
+            .map(|b| b.to_level())
             .collect();
         let asks = asks.into_iter()
-            .map(|b| orderbook::Ask::new(b.price, b.amount, Exchange::Binance))
+            .map(|a| a.to_level())
             .collect();
 
         Some(InTick {
@@ -114,11 +114,11 @@ mod test {
                    }".to_string())?,
                    Event{
                        last_update_id: 5244166729,
-                       bids: vec![ Bid { price: dec!(0.06900300), amount: dec!(14.80480000) }
-                                 , Bid { price: dec!(0.06900100), amount: dec!(0.85230000) }
+                       bids: vec![ Level { price: dec!(0.06900300), amount: dec!(14.80480000) }
+                                 , Level { price: dec!(0.06900100), amount: dec!(0.85230000) }
                                  ],
-                       asks: vec![ Ask { price: dec!(0.06900400), amount: dec!(12.04200000) }
-                                 , Ask { price: dec!(0.06900500), amount: dec!(2.85830000) }
+                       asks: vec![ Level { price: dec!(0.06900400), amount: dec!(12.04200000) }
+                                 , Level { price: dec!(0.06900500), amount: dec!(2.85830000) }
                                  ]
                    }
         );
