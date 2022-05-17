@@ -6,6 +6,8 @@ use tokio_tungstenite::{MaybeTlsStream, WebSocketStream};
 use tungstenite::Message;
 use url::Url;
 
+pub(crate) type WsStream = WebSocketStream<MaybeTlsStream<TcpStream>>;
+
 pub(crate) async fn connect(s: &str) -> Result<WebSocketStream<MaybeTlsStream<TcpStream>>, Error> {
     let url = Url::parse(s).unwrap();
     let (ws_stream, _) =

@@ -1,15 +1,13 @@
 use chrono::{DateTime, Utc};
-use futures::channel::mpsc::UnboundedSender;
 use crate::error::Error;
-use crate::orderbook::{Exchange, InTick, ToLevel, ToTick};
+use crate::orderbook::{self, Exchange, InTick, ToLevel, ToTick};
+use crate::websocket;
 use futures::SinkExt;
+use futures::channel::mpsc::UnboundedSender;
 use log::{debug, info};
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
-use tokio::net::TcpStream;
-use tokio_tungstenite::{MaybeTlsStream, WebSocketStream};
 use tungstenite::protocol::Message;
-use crate::{orderbook, websocket};
 
 const BITSTAMP_WS_URL: &str = "wss://ws.bitstamp.net";
 
@@ -108,7 +106,7 @@ impl ToLevel for Level {
 
 type Channel = String;
 
-pub(crate) async fn connect(symbol: &String) -> Result<WebSocketStream<MaybeTlsStream<TcpStream>>, Error> {
+pub(crate) async fn connect(symbol: &String) -> Result<websocket::WsStream, Error> {
     let mut ws_stream = websocket::connect(BITSTAMP_WS_URL).await?;
     subscribe(&mut ws_stream, symbol).await?;
     Ok(ws_stream)
@@ -150,7 +148,7 @@ fn parse(msg: Message) -> Result<Option<InTick>, Error> {
 }
 
 async fn subscribe (
-    rx: &mut WebSocketStream<MaybeTlsStream<TcpStream>>,
+    rx: &mut websocket::WsStream,
     symbol: &String,
 ) -> Result<(), Error>
 {

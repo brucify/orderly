@@ -1,12 +1,10 @@
-use futures::channel::mpsc::UnboundedSender;
 use crate::error::Error;
-use crate::orderbook::{Exchange, InTick, ToLevel, ToTick};
-use crate::{orderbook, websocket};
+use crate::orderbook::{self, Exchange, InTick, ToLevel, ToTick};
+use crate::websocket;
+use futures::channel::mpsc::UnboundedSender;
 use log::{debug, info};
 use rust_decimal::Decimal;
 use serde::Deserialize;
-use tokio::net::TcpStream;
-use tokio_tungstenite::{MaybeTlsStream, WebSocketStream};
 use tungstenite::Message;
 
 const BINANCE_WS_URL: &str = "wss://stream.binance.com:9443/ws";
@@ -59,7 +57,7 @@ impl ToTick for Event {
     }
 }
 
-pub(crate) async fn connect(symbol: &String) -> Result<WebSocketStream<MaybeTlsStream<TcpStream>>, Error> {
+pub(crate) async fn connect(symbol: &String) -> Result<websocket::WsStream, Error> {
     let depth = 10;
     let url = format!("{}/{}@depth{}@100ms", BINANCE_WS_URL, symbol.to_lowercase(), depth);
     Ok(websocket::connect(url.as_str()).await?)
