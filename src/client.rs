@@ -31,7 +31,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut response = client.book_summary(request).await?.into_inner();
     // listening to stream
     while let Some(res) = response.message().await? {
-        info!("{:?}", res);
+        let proto::Summary{spread, bids, asks} = res;
+        info!("");
+        bids.iter().rev().for_each(|b| info!("Bid: {:?}", b));
+        info!("Spread: {}", spread.to_string());
+        asks.iter().for_each(|a| info!("Ask: {:?}", a));
     }
 
     Ok(())
