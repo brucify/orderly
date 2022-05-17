@@ -1,4 +1,3 @@
-use futures::channel::mpsc::{UnboundedReceiver, UnboundedSender};
 use rust_decimal::Decimal;
 use rust_decimal_macros::dec;
 
@@ -76,7 +75,7 @@ impl Exchanges {
         }
     }
 
-    /// Extracts the bids and asks from the `Tick`, then adds into its corresponding
+    /// Extracts the bids and asks from the `InTick`, then adds into its corresponding
     /// orderbook of the exchange.
     pub(crate) fn update(&mut self, t: InTick) {
         match t.exchange {
@@ -132,10 +131,6 @@ impl OrderDepths {
             asks: vec![],
         }
     }
-}
-
-pub(crate) fn channel() -> (UnboundedSender<InTick>, UnboundedReceiver<InTick>) {
-    futures::channel::mpsc::unbounded()
 }
 
 #[cfg(test)]

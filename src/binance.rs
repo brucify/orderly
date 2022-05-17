@@ -24,36 +24,31 @@ struct Level {
 }
 
 impl ToLevel for Level {
+    /// Converts a `binance::Level` into a `orderbook::Level`.
     fn to_level(&self) -> orderbook::Level {
         orderbook::Level::new(self.price, self.amount, Exchange::Binance)
     }
 }
 
+fn to_levels(levels: &Vec<Level>, depth: usize) -> Vec<orderbook::Level> {
+    let levels = match levels.len() > depth {
+        true => levels.split_at(depth).0.to_vec(), // only keep 10
+        false => levels.clone(),
+    };
+
+    levels.into_iter()
+        .map(|l| l.to_level())
+        .collect()
+}
+
 impl ToTick for Event {
-    /// Converts the `Event` into a `Option<Tick>`. Only keep the top ten levels of bids and asks.
+    /// Converts the `Event` into a `Option<InTick>`. Only keep the top ten levels of bids and asks.
     fn maybe_to_tick(&self) -> Option<InTick> {
         let depth = 10;
-        let bids = match self.bids.len() > depth {
-            true => self.bids.split_at(depth).0.to_vec(), // only keep 10
-            false => self.bids.clone(),
-        };
-        let asks = match self.asks.len() > depth {
-            true => self.asks.split_at(depth).0.to_vec(), // only keep 10
-            false => self.asks.clone(),
-        };
+        let bids = to_levels(&self.bids, depth);
+        let asks = to_levels(&self.asks, depth);
 
-        let bids = bids.into_iter()
-            .map(|b| b.to_level())
-            .collect();
-        let asks = asks.into_iter()
-            .map(|a| a.to_level())
-            .collect();
-
-        Some(InTick {
-            exchange: Exchange::Binance,
-            bids,
-            asks,
-        })
+        Some(InTick { exchange: Exchange::Binance, bids, asks })
     }
 }
 

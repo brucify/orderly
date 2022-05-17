@@ -34,32 +34,15 @@ enum Event {
 }
 
 impl ToTick for Event {
-    /// Converts the `Event` into a `Option<Tick>`. Only keep the top ten levels of bids and asks.
+    /// Converts the `Event` into a `Option<InTick>`. Only keep the top ten levels of bids and asks.
     fn maybe_to_tick(&self) -> Option<InTick> {
         match self {
             Event::Data { data, .. } => {
                 let depth = 10;
-                let bids = match data.bids.len() > depth {
-                    true => data.bids.split_at(depth).0.to_vec(), // only keep 10
-                    false => data.bids.clone(),
-                };
-                let asks = match data.asks.len() > depth {
-                    true => data.asks.split_at(depth).0.to_vec(), // only keep 10
-                    false => data.asks.clone(),
-                };
+                let bids = to_levels(&data.bids, depth);
+                let asks = to_levels(&data.asks, depth);
 
-                let bids = bids.into_iter()
-                    .map(|b| b.to_level())
-                    .collect();
-                let asks = asks.into_iter()
-                    .map(|a| a.to_level())
-                    .collect();
-
-                Some(InTick {
-                    exchange: Exchange::Bitstamp,
-                    bids,
-                    asks,
-                })
+                Some(InTick { exchange: Exchange::Bitstamp, bids, asks })
             }
             _ => None,
         }
@@ -99,9 +82,21 @@ struct Level {
 }
 
 impl ToLevel for Level {
+    /// Converts a `bitstamp::Level` into a `orderbook::Level`.
     fn to_level(&self) -> orderbook::Level {
         orderbook::Level::new(self.price, self.amount, Exchange::Bitstamp)
     }
+}
+
+fn to_levels(levels: &Vec<Level>, depth: usize) -> Vec<orderbook::Level> {
+    let levels = match levels.len() > depth {
+        true => levels.split_at(depth).0.to_vec(), // only keep 10
+        false => levels.clone(),
+    };
+
+    levels.into_iter()
+        .map(|l| l.to_level())
+        .collect()
 }
 
 type Channel = String;

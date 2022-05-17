@@ -1,7 +1,7 @@
 use crate::error::Error;
 use crate::grpc::OrderBookService;
 use crate::orderbook::{Exchanges, OutTick};
-use crate::{bitstamp, stdin, orderbook, binance, websocket};
+use crate::{bitstamp, stdin, binance, websocket};
 use futures::{SinkExt, StreamExt};
 use log::{debug, info};
 use std::sync::Arc;
@@ -37,7 +37,7 @@ impl Connector {
         let mut ws_bitstamp = bitstamp::connect(symbol).await?;
         let mut ws_binance = binance::connect(symbol).await?;
         let mut rx_stdin = stdin::rx();
-        let (tx_in_ticks, mut rx_in_ticks) = orderbook::channel();
+        let (tx_in_ticks, mut rx_in_ticks) = futures::channel::mpsc::unbounded();
 
         let mut exchanges = Exchanges::new();
 
