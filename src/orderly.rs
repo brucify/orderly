@@ -67,14 +67,14 @@ impl Connector {
                         info!("Err: {:?}", e);
                         break
                     }
-                }
+                },
                 stdin_msg = rx_stdin.recv() => {
                     match stdin_msg {
                         Some(msg) => {
                             info!("Sent to bitstamp: {:?}", msg);
                             let _ = ws_bitstamp.send(Message::Text(msg)).await;
                         },
-                        None => break
+                        None => break,
                     }
                 },
                 in_tick = rx_in_ticks.next() => {
@@ -91,9 +91,9 @@ impl Connector {
 
                             tx.send(out_tick).expect("channel should not be closed");
                         },
-                        _ => {}
+                        _ => {},
                     }
-                }
+                },
             };
         }
 

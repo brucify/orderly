@@ -14,7 +14,7 @@ pub mod proto {
 }
 
 pub struct OrderBookService {
-    out_ticks: Arc<RwLock<OutTickPair>>
+    out_ticks: Arc<RwLock<OutTickPair>>,
 }
 
 impl OrderBookService {
@@ -68,7 +68,7 @@ fn to_levels(levels: &Vec<orderbook::Level>) -> Vec<proto::Level> {
 impl proto::orderbook_aggregator_server::OrderbookAggregator for OrderBookService {
     async fn check(
         &self,
-        request: Request<proto::Empty>
+        request: Request<proto::Empty>,
     ) -> Result<Response<proto::Summary>, Status> {
         info!("Got a request: {:?}", request);
 

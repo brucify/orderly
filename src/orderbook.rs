@@ -24,7 +24,7 @@ impl OutTick {
         OutTick {
             spread: Default::default(),
             bids: vec![],
-            asks: vec![]
+            asks: vec![],
         }
     }
 }
@@ -82,11 +82,11 @@ impl Exchanges {
             Exchange::Bitstamp => {
                 self.bitstamp.bids = t.bids;
                 self.bitstamp.asks = t.asks;
-            }
+            },
             Exchange::Binance => {
                 self.binance.bids = t.bids;
                 self.binance.asks = t.asks;
-            }
+            },
         }
     }
 
@@ -107,7 +107,7 @@ impl Exchanges {
 
         let spread = match (bids.first(), asks.first()) {
             (Some(b), Some(a)) => a.price - b.price,
-            (_, _) => dec!(0)
+            (_, _) => dec!(0),
         };
 
         OutTick { spread, bids, asks }
@@ -174,7 +174,7 @@ mod test {
                 Level::new(dec!(0.07375625), dec!(6.96131361), Exchange::Bitstamp),
                 Level::new(dec!(0.07375736), dec!(0.00275804), Exchange::Bitstamp),
                 Level::new(dec!(0.07377938), dec!(0.00275807), Exchange::Bitstamp),
-            ]
+            ],
         };
 
         /*
@@ -247,7 +247,7 @@ mod test {
                 Level::new(dec!(18), dec!(1), Exchange::Bitstamp),
                 Level::new(dec!(19), dec!(1), Exchange::Bitstamp),
                 Level::new(dec!(20), dec!(1), Exchange::Bitstamp),
-            ]
+            ],
         };
         let t2 = InTick {
             exchange: Exchange::Binance,
@@ -274,7 +274,7 @@ mod test {
                 Level::new(dec!(18.5), dec!(2), Exchange::Binance),
                 Level::new(dec!(19.5), dec!(2), Exchange::Binance),
                 Level::new(dec!(20.5), dec!(2), Exchange::Binance),
-            ]
+            ],
         };
         exchanges.update(t1);
         exchanges.update(t2);

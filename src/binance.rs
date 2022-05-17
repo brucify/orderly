@@ -20,7 +20,7 @@ struct Event {
 #[derive(Debug, Deserialize, PartialEq, Clone)]
 struct Level {
     price: Decimal,
-    amount: Decimal
+    amount: Decimal,
 }
 
 impl ToLevel for Level {
@@ -107,12 +107,14 @@ mod test {
                    }".to_string())?,
                    Event{
                        last_update_id: 5244166729,
-                       bids: vec![ Level { price: dec!(0.06900300), amount: dec!(14.80480000) }
-                                 , Level { price: dec!(0.06900100), amount: dec!(0.85230000) }
-                                 ],
-                       asks: vec![ Level { price: dec!(0.06900400), amount: dec!(12.04200000) }
-                                 , Level { price: dec!(0.06900500), amount: dec!(2.85830000) }
-                                 ]
+                       bids: vec![
+                           Level { price: dec!(0.06900300), amount: dec!(14.80480000) },
+                           Level { price: dec!(0.06900100), amount: dec!(0.85230000) },
+                       ],
+                       asks: vec![
+                           Level { price: dec!(0.06900400), amount: dec!(12.04200000) },
+                           Level { price: dec!(0.06900500), amount: dec!(2.85830000) },
+                       ]
                    }
         );
         Ok(())

@@ -43,7 +43,7 @@ impl ToTick for Event {
                 let asks = to_levels(&data.asks, depth);
 
                 Some(InTick { exchange: Exchange::Bitstamp, bids, asks })
-            }
+            },
             _ => None,
         }
     }
@@ -78,7 +78,7 @@ struct InError {
 #[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
 struct Level {
     price: Decimal,
-    amount: Decimal
+    amount: Decimal,
 }
 
 impl ToLevel for Level {
@@ -223,12 +223,14 @@ mod test {
                        data: InData {
                            timestamp: Utc.timestamp(1652103479, 0),
                            microtimestamp: Utc.timestamp_nanos(1652103479857383000),
-                           bids: vec![ Level { price: dec!(0.07295794), amount: dec!(0.46500000) }
-                                     , Level { price: dec!(0.07295284), amount: dec!(0.60423006) }
-                                     ],
-                           asks: vec![ Level { price: dec!(0.07301587), amount: dec!(0.46500000) }
-                                     , Level { price: dec!(0.07301952), amount: dec!(7.74449027) }
-                                     ]
+                           bids: vec![
+                               Level { price: dec!(0.07295794), amount: dec!(0.46500000) },
+                               Level { price: dec!(0.07295284), amount: dec!(0.60423006) },
+                           ],
+                           asks: vec![
+                               Level { price: dec!(0.07301587), amount: dec!(0.46500000) },
+                               Level { price: dec!(0.07301952), amount: dec!(7.74449027) },
+                           ],
                        },
                        channel: "order_book_ethbtc".to_string(),
                    });
