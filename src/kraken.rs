@@ -10,6 +10,21 @@ use tungstenite::protocol::Message;
 const KRAKEN_WS_URL: &str = "wss://ws.kraken.com";
 
 #[derive(Debug, Deserialize, Serialize, PartialEq)]
+#[serde(untagged)]
+enum Event {
+    GeneralMessage(GeneralMessage),
+
+    PublicMessage(PublicMessage),
+}
+
+impl ToTick for Event {
+    /// Converts the `Event` into a `Option<InTick>`. Only keep the top ten levels of bids and asks.
+    fn maybe_to_tick(&self) -> Option<InTick> {
+        None
+    }
+}
+
+#[derive(Debug, Deserialize, Serialize, PartialEq)]
 #[serde(tag = "event")]
 enum GeneralMessage {
     /// Request. Client can ping server to determine whether connection is alive,
@@ -226,24 +241,7 @@ enum GeneralMessage {
         reqid: Option<usize>,
     },
 
-    // #[serde(deserialize_with = "deserialize_book")]
-    // Book{
-    //     /// Channel ID of subscription - deprecated, use channelName and pair
-    //     // #[serde(rename = "channelID")]
-    //     channel_id: usize,
-    //
-    //     levels: Levels,
-    //
-    //     /// Channel Name of subscription
-    //     // #[serde(rename = "channelName")]
-    //     channel_name: String,
-    //
-    //     /// Asset pair
-    //     pair: String,
-    // },
 }
-
-
 
 #[derive(Debug, Deserialize, Serialize, PartialEq)]
 #[serde(rename_all = "snake_case")]
@@ -275,7 +273,6 @@ struct Subscription {
     /// Optional - base64-encoded authentication token for private-data endpoints
     token: Option<String>,
 }
-
 
 #[derive(Debug, Deserialize, Serialize, PartialEq)]
 struct Unsubscription {
@@ -471,14 +468,6 @@ enum SubscriptionType {
     AllAvailable,
 }
 
-
-impl ToTick for GeneralMessage {
-    /// Converts the `Event` into a `Option<InTick>`. Only keep the top ten levels of bids and asks.
-    fn maybe_to_tick(&self) -> Option<InTick> {
-        None
-    }
-}
-
 pub(crate) async fn connect(_symbol: &String) -> Result<websocket::WsStream, Error> {
     let ws_stream = websocket::connect(KRAKEN_WS_URL).await?;
     // subscribe(&mut ws_stream, symbol).await?;
@@ -517,7 +506,7 @@ fn parse(msg: Message) -> Result<Option<InTick>, Error> {
         Message::Text(x) => {
             info!("{:?}", x);
 
-            let e= deserialize_event(x)?;
+            let e = deserialize_event(x)?;
             // if let Event::Data{..} = e {
             //     debug!("{:?}", e);
             // } else {
@@ -544,11 +533,7 @@ fn parse(msg: Message) -> Result<Option<InTick>, Error> {
 //     Ok(())
 // }
 
-fn deserialize_event(s: String) -> serde_json::Result<GeneralMessage> {
-    Ok(serde_json::from_str(&s)?)
-}
-
-fn deserialize_book(s: String) -> serde_json::Result<PublicMessage> {
+fn deserialize_event(s: String) -> serde_json::Result<Event> {
     Ok(serde_json::from_str(&s)?)
 }
 
@@ -564,8 +549,7 @@ mod test {
 
     #[test]
     fn should_deserialize_book() -> Result<(), Error> {
-        // assert_eq!(deserialize_event("[\
-        assert_eq!(deserialize_book("[\
+        assert_eq!(deserialize_event("[\
             640,\
             {\
                 \"as\": [\
@@ -596,7 +580,7 @@ mod test {
             \"book-10\",\
             \"ETH/XBT\"\
         ]".to_string())?,
-                   PublicMessage{
+                   Event::PublicMessage(PublicMessage{
                        channel_id: 640,
                        payload: Payload::Book{
                            bids: vec![
@@ -626,7 +610,7 @@ mod test {
                        },
                        channel_name: "book-10".to_string(),
                        pair: "ETH/XBT".to_string()
-                   });
+                   }));
         Ok(())
     }
 
@@ -642,7 +626,7 @@ mod test {
                 \"depth\":10,\
                 \"name\":\"book\"\
             }\
-        }".to_string())?, GeneralMessage::SubscriptionStatus{
+        }".to_string())?, Event::GeneralMessage(GeneralMessage::SubscriptionStatus{
             channel_name: "book-10".to_string(),
             reqid: None, 
             pair: Some("ETH/XBT".to_string()),
@@ -656,7 +640,9 @@ mod test {
             }, 
             error_message: None, 
             channel_id: Some(640)
-        });
+        }));
+
+
         Ok(())
     }
 
