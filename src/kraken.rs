@@ -358,13 +358,13 @@ struct SubscriptionStatus {
 ///   "XBT/USD"
 /// ]
 ///```
-#[derive(Debug, Deserialize, Serialize, PartialEq, Default)]
-struct Book {
+#[derive(Debug, Deserialize, Serialize, PartialEq)]
+struct PublicMessage {
     /// Channel ID of subscription - deprecated, use channelName and pair
     // #[serde(rename = "channelID")]
     channel_id: usize,
 
-    levels: Levels,
+    payload: Payload,
 
     /// Channel Name of subscription
     // #[serde(rename = "channelName")]
@@ -374,15 +374,18 @@ struct Book {
     pair: String,
 }
 
-#[derive(Debug, Deserialize, Serialize, PartialEq, Default)]
-struct Levels {
-    /// Array of price levels, ascending from best ask
-    #[serde(rename = "as")]
-    asks: Vec<Level>,
+#[derive(Debug, Deserialize, Serialize, PartialEq)]
+#[serde(untagged)]
+enum Payload {
+    Book {
+        /// Array of price levels, ascending from best ask
+        #[serde(rename = "as")]
+        asks: Vec<Level>,
 
-    /// Array of price levels, descending from best bid
-    #[serde(rename = "bs")]
-    bids: Vec<Level>,
+        /// Array of price levels, descending from best bid
+        #[serde(rename = "bs")]
+        bids: Vec<Level>,
+    }
 }
 
 #[derive(Debug, Deserialize, Serialize, PartialEq)]
@@ -545,7 +548,7 @@ fn deserialize_event(s: String) -> serde_json::Result<GeneralMessage> {
     Ok(serde_json::from_str(&s)?)
 }
 
-fn deserialize_book(s: String) -> serde_json::Result<Book> {
+fn deserialize_book(s: String) -> serde_json::Result<PublicMessage> {
     Ok(serde_json::from_str(&s)?)
 }
 
@@ -593,10 +596,9 @@ mod test {
             \"book-10\",\
             \"ETH/XBT\"\
         ]".to_string())?,
-                   Book{
-                   // Event::Book{
+                   PublicMessage{
                        channel_id: 640,
-                       levels: Levels{
+                       payload: Payload::Book{
                            bids: vec![
                                Level { price: dec!(0.067990), volume: dec!(29.35934962), timestamp: dec!(1652817780.853167) },
                                Level { price: dec!(0.067980), volume: dec!(48.72763614), timestamp: dec!(1652817781.487388) },
@@ -640,7 +642,7 @@ mod test {
                 \"depth\":10,\
                 \"name\":\"book\"\
             }\
-        }".to_string())?, GeneralMessage::SubscriptionStatus {
+        }".to_string())?, GeneralMessage::SubscriptionStatus{
             channel_name: "book-10".to_string(),
             reqid: None, 
             pair: Some("ETH/XBT".to_string()),
