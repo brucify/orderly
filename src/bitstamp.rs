@@ -37,9 +37,8 @@ impl ToTick for Event {
     fn maybe_to_tick(&self) -> Option<InTick> {
         match self {
             Event::Data { data, .. } => {
-                let depth = 10;
-                let bids = data.bids.to_levels(depth);
-                let asks = data.asks.to_levels(depth);
+                let bids = data.bids.to_levels(10);
+                let asks = data.asks.to_levels(10);
 
                 Some(InTick { exchange: Exchange::Bitstamp, bids, asks })
             },
@@ -120,7 +119,8 @@ async fn subscribe (
     symbol: &String,
 ) -> Result<(), Error>
 {
-    let channel = format!("order_book_{}", symbol.to_lowercase());
+    let symbol = symbol.to_lowercase().replace("/", "");
+    let channel = format!("order_book_{}", symbol);
     let msg = serialize(Event::Subscribe{ data: OutSubscription { channel } })?;
     rx.send(Message::Text(msg)).await?;
     Ok(())

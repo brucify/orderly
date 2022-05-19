@@ -1,11 +1,11 @@
 use crate::error::Error;
 use crate::grpc::OrderBookService;
 use crate::orderbook::{Exchanges, InTick, OutTick};
-use crate::{bitstamp, stdin, binance, websocket};
+use crate::{bitstamp, stdin, binance, websocket, kraken};
+use futures::channel::mpsc::UnboundedSender;
 use futures::{SinkExt, StreamExt};
 use log::{debug, info};
 use std::sync::Arc;
-use futures::channel::mpsc::UnboundedSender;
 use tokio::sync::{RwLock, watch};
 use tungstenite::protocol::Message;
 
@@ -37,6 +37,7 @@ impl Connector {
     async fn run(&self, symbol: &String) -> Result<(), Error> {
         let mut ws_bitstamp = bitstamp::connect(symbol).await?;
         let mut ws_binance = binance::connect(symbol).await?;
+        let mut ws_kraken = kraken::connect(symbol).await?;
         let mut rx_stdin = stdin::rx();
         let (tx_in_ticks, mut rx_in_ticks) = futures::channel::mpsc::unbounded();
 
@@ -45,6 +46,18 @@ impl Connector {
         // handle websocket messages
         loop {
             tokio::select! {
+                ws_msg = ws_kraken.next() => {
+                    let tx = tx_in_ticks.clone();
+
+                    let res = handle(ws_msg).and_then(|msg| {
+                        msg.parse_and_send(kraken::parse, tx)
+                    });
+
+                    if let Err(e) = res {
+                        info!("Err: {:?}", e);
+                        break
+                    }
+                },
                 ws_msg = ws_bitstamp.next() => {
                     let tx = tx_in_ticks.clone();
 
@@ -72,8 +85,8 @@ impl Connector {
                 stdin_msg = rx_stdin.recv() => {
                     match stdin_msg {
                         Some(msg) => {
-                            info!("Sent to bitstamp: {:?}", msg);
-                            let _ = ws_bitstamp.send(Message::Text(msg)).await;
+                            info!("Sent to WS: {:?}", msg);
+                            let _ = ws_kraken.send(Message::Text(msg)).await;
                         },
                         None => break,
                     }
@@ -85,7 +98,7 @@ impl Connector {
                             exchanges.update(t);
 
                             let out_tick = exchanges.to_tick();
-                            info!("{:?}", out_tick);
+                            debug!("{:?}", out_tick);
 
                             let writer = self.out_ticks.write().await;
                             let tx = &writer.0;
@@ -101,6 +114,7 @@ impl Connector {
         // Gracefully close connection by Close-handshake procedure
         websocket::close(&mut ws_bitstamp).await;
         websocket::close(&mut ws_binance).await;
+        websocket::close(&mut ws_kraken).await;
 
         Ok(())
     }

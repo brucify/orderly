@@ -1,7 +1,8 @@
+use std::collections::BTreeMap;
 use rust_decimal::Decimal;
 use rust_decimal_macros::dec;
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub(crate) struct InTick {
     pub(crate) exchange: Exchange,
     pub(crate) bids: Vec<Level>,
@@ -33,6 +34,7 @@ impl OutTick {
 pub(crate) enum Exchange {
     Bitstamp,
     Binance,
+    Kraken,
 }
 
 impl ToString for Exchange {
@@ -40,6 +42,7 @@ impl ToString for Exchange {
         match self {
             Exchange::Bitstamp => "bitstamp".to_string(),
             Exchange::Binance => "binance".to_string(),
+            Exchange::Kraken => "kraken".to_string(),
         }
     }
 }
@@ -80,10 +83,32 @@ impl<T> ToLevels for Vec<T>
     }
 }
 
+trait Merge {
+    fn merge(self, other: Vec<Level>) -> Vec<Level>;
+    fn merge_map(self, other: LevelsMap) -> Vec<Level>;
+}
+
+impl Merge for Vec<Level> {
+    fn merge(self, other: Vec<Level>) -> Vec<Level> {
+        let mut levels: Vec<Level> =
+            self.into_iter()
+                .chain(other)
+                .collect();
+        levels.sort_unstable();
+        levels
+    }
+
+    fn merge_map(self, other: LevelsMap) -> Vec<Level> {
+        let levels: Vec<Level> = other.values().cloned().collect();
+        self.merge(levels)
+    }
+}
+
 #[derive(Debug, PartialEq)]
 pub(crate) struct Exchanges {
     bitstamp: OrderDepths,
     binance: OrderDepths,
+    kraken: OrderDepthsMap,
 }
 
 impl Exchanges {
@@ -91,6 +116,7 @@ impl Exchanges {
         Exchanges {
             bitstamp: OrderDepths::new(),
             binance: OrderDepths::new(),
+            kraken: OrderDepthsMap::new(),
         }
     }
 
@@ -106,22 +132,34 @@ impl Exchanges {
                 self.binance.bids = t.bids;
                 self.binance.asks = t.asks;
             },
+            Exchange::Kraken => {
+                let bids = t.bids.into_iter()
+                    .map(|l| (l.price, l))
+                    .collect::<LevelsMap>();
+                let asks = t.asks.into_iter()
+                    .map(|l| (l.price, l))
+                    .collect::<LevelsMap>();
+
+                self.kraken.bids.extend_and_keep(bids, 10);
+                self.kraken.asks.extend_and_keep(asks, 10);
+            }
         }
     }
 
     /// Returns a new `OutTick` containing the merge bids and asks from both orderbooks.
     pub(crate) fn to_tick(&self) -> OutTick {
         let bids: Vec<Level> =
-            Self::merge(self.bitstamp.bids.clone(), self.binance.bids.clone())
-                .into_iter()
-                .rev()
-                .take(10)
+            self.bitstamp.bids.clone()
+                .merge(self.binance.bids.clone())
+                .merge_map(self.kraken.bids.clone())
+                .into_iter().rev().take(10)
                 .collect();
 
         let asks: Vec<Level> =
-            Self::merge(self.bitstamp.asks.clone(), self.binance.asks.clone())
-                .into_iter()
-                .take(10)
+            self.bitstamp.asks.clone()
+                .merge(self.binance.asks.clone())
+                .merge_map(self.kraken.asks.clone())
+                .into_iter().take(10)
                 .collect();
 
         let spread = match (bids.first(), asks.first()) {
@@ -130,15 +168,6 @@ impl Exchanges {
         };
 
         OutTick { spread, bids, asks }
-    }
-
-    fn merge(first: Vec<Level>, second: Vec<Level>) -> Vec<Level> {
-        let mut levels: Vec<Level> =
-            first.into_iter()
-                .chain(second)
-                .collect();
-        levels.sort_unstable();
-        levels
     }
 }
 
@@ -149,10 +178,46 @@ struct OrderDepths {
 }
 
 impl OrderDepths {
-    fn new() -> OrderDepths {
+    fn new() -> Self {
         OrderDepths {
             bids: vec![],
             asks: vec![],
+        }
+    }
+}
+
+type LevelsMap = BTreeMap<Decimal, Level>;
+
+#[derive(Debug, PartialEq)]
+struct OrderDepthsMap {
+    bids: LevelsMap,
+    asks: LevelsMap,
+}
+
+impl OrderDepthsMap {
+    fn new() -> Self {
+        OrderDepthsMap {
+            bids: BTreeMap::new(),
+            asks: BTreeMap::new(),
+        }
+    }
+}
+
+trait ExtendAndKeep {
+    fn extend_and_keep(
+        &mut self,
+        other: LevelsMap,
+        index: usize,
+    );
+}
+
+impl ExtendAndKeep for LevelsMap {
+    /// Merges two `BTreeMap`. Returns everything before the given index.
+    fn extend_and_keep(&mut self, other: LevelsMap, i: usize) {
+        self.extend(other);
+        if self.len() > i {
+            let key = self.keys().collect::<Vec<&Decimal>>()[i].clone();
+            self.split_off(&key);
         }
     }
 }
@@ -232,6 +297,7 @@ mod test {
                 ],
             },
             binance: OrderDepths::new(),
+            kraken: OrderDepthsMap::new(),
         });
     }
 
@@ -295,8 +361,36 @@ mod test {
                 Level::new(dec!(20.5), dec!(2), Exchange::Binance),
             ],
         };
+        let t3 = InTick {
+            exchange: Exchange::Kraken,
+            bids: vec![
+                Level::new(dec!(10.75), dec!(3), Exchange::Kraken),
+                Level::new(dec!(9.75), dec!(3), Exchange::Kraken),
+                Level::new(dec!(8.75), dec!(3), Exchange::Kraken),
+                Level::new(dec!(7.75), dec!(3), Exchange::Kraken),
+                Level::new(dec!(6.75), dec!(3), Exchange::Kraken),
+                Level::new(dec!(5.75), dec!(3), Exchange::Kraken),
+                Level::new(dec!(4.75), dec!(3), Exchange::Kraken),
+                Level::new(dec!(3.75), dec!(3), Exchange::Kraken),
+                Level::new(dec!(2.75), dec!(3), Exchange::Kraken),
+                Level::new(dec!(1.75), dec!(3), Exchange::Kraken),
+            ],
+            asks: vec![
+                Level::new(dec!(11.75), dec!(3), Exchange::Kraken),
+                Level::new(dec!(12.75), dec!(3), Exchange::Kraken),
+                Level::new(dec!(13.75), dec!(3), Exchange::Kraken),
+                Level::new(dec!(14.75), dec!(3), Exchange::Kraken),
+                Level::new(dec!(15.75), dec!(3), Exchange::Kraken),
+                Level::new(dec!(16.75), dec!(3), Exchange::Kraken),
+                Level::new(dec!(17.75), dec!(3), Exchange::Kraken),
+                Level::new(dec!(18.75), dec!(3), Exchange::Kraken),
+                Level::new(dec!(19.75), dec!(3), Exchange::Kraken),
+                Level::new(dec!(20.75), dec!(3), Exchange::Kraken),
+            ],
+        };
         exchanges.update(t1);
         exchanges.update(t2);
+        exchanges.update(t3);
 
         /*
          * When
@@ -307,30 +401,30 @@ mod test {
          * Then
          */
         assert_eq!(out_tick, OutTick {
-            spread: dec!(0.5),
+            spread: dec!(0.25),
             bids:vec![
+                Level::new(dec!(10.75), dec!(3), Exchange::Kraken),
                 Level::new(dec!(10.5), dec!(2), Exchange::Binance),
                 Level::new(dec!(10), dec!(1), Exchange::Bitstamp),
+                Level::new(dec!(9.75), dec!(3), Exchange::Kraken),
                 Level::new(dec!(9.5), dec!(2), Exchange::Binance),
                 Level::new(dec!(9), dec!(1), Exchange::Bitstamp),
+                Level::new(dec!(8.75), dec!(3), Exchange::Kraken),
                 Level::new(dec!(8.5), dec!(2), Exchange::Binance),
                 Level::new(dec!(8), dec!(1), Exchange::Bitstamp),
-                Level::new(dec!(7.5), dec!(2), Exchange::Binance),
-                Level::new(dec!(7), dec!(1), Exchange::Bitstamp),
-                Level::new(dec!(6.5), dec!(2), Exchange::Binance),
-                Level::new(dec!(6), dec!(1), Exchange::Bitstamp),
+                Level::new(dec!(7.75), dec!(3), Exchange::Kraken),
             ],
             asks: vec![
                 Level::new(dec!(11), dec!(1), Exchange::Bitstamp),
                 Level::new(dec!(11.5), dec!(2), Exchange::Binance),
+                Level::new(dec!(11.75), dec!(3), Exchange::Kraken),
                 Level::new(dec!(12), dec!(1), Exchange::Bitstamp),
                 Level::new(dec!(12.5), dec!(2), Exchange::Binance),
+                Level::new(dec!(12.75), dec!(3), Exchange::Kraken),
                 Level::new(dec!(13), dec!(1), Exchange::Bitstamp),
                 Level::new(dec!(13.5), dec!(2), Exchange::Binance),
+                Level::new(dec!(13.75), dec!(3), Exchange::Kraken),
                 Level::new(dec!(14), dec!(1), Exchange::Bitstamp),
-                Level::new(dec!(14.5), dec!(2), Exchange::Binance),
-                Level::new(dec!(15), dec!(1), Exchange::Bitstamp),
-                Level::new(dec!(15.5), dec!(2), Exchange::Binance),
             ],
         });
     }
