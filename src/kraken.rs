@@ -2,7 +2,7 @@ use crate::error::Error;
 use crate::orderbook::{InTick, ToTick};
 use crate::websocket;
 use futures::channel::mpsc::UnboundedSender;
-use log::info;
+use log::{debug, info};
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use tungstenite::protocol::Message;
@@ -289,7 +289,6 @@ struct Unsubscription {
     token: Option<String>,
 }
 
-
 #[derive(Debug, Deserialize, Serialize, PartialEq)]
 struct SubscriptionStatus {
     /// Optional - depth associated with book subscription in number of levels each side, default 10. Valid Options are: 10, 25, 100, 500, 1000
@@ -308,63 +307,14 @@ struct SubscriptionStatus {
     token: Option<String>,
 }
 
-/// Publication: Order book levels. On subscription, a snapshot will be published at the specified depth, following the snapshot, level updates will be published
-///
-/// **Example of snapshot payload**
-///
-///```json
-/// [
-///   0,
-///   {
-///     "as": [
-///       [
-///         "5541.30000",
-///         "2.50700000",
-///         "1534614248.123678"
-///       ],
-///       [
-///         "5541.80000",
-///         "0.33000000",
-///         "1534614098.345543"
-///       ],
-///       [
-///         "5542.70000",
-///         "0.64700000",
-///         "1534614244.654432"
-///       ]
-///     ],
-///     "bs": [
-///       [
-///         "5541.20000",
-///         "1.52900000",
-///         "1534614248.765567"
-///       ],
-///       [
-///         "5539.90000",
-///         "0.30000000",
-///         "1534614241.769870"
-///       ],
-///       [
-///         "5539.50000",
-///         "5.00000000",
-///         "1534613831.243486"
-///       ]
-///     ]
-///   },
-///   "book-100",
-///   "XBT/USD"
-/// ]
-///```
 #[derive(Debug, Deserialize, Serialize, PartialEq)]
 struct PublicMessage {
     /// Channel ID of subscription - deprecated, use channelName and pair
-    // #[serde(rename = "channelID")]
     channel_id: usize,
 
     payload: Payload,
 
     /// Channel Name of subscription
-    // #[serde(rename = "channelName")]
     channel_name: String,
 
     /// Asset pair
@@ -374,7 +324,60 @@ struct PublicMessage {
 #[derive(Debug, Deserialize, Serialize, PartialEq)]
 #[serde(untagged)]
 enum Payload {
-    Book {
+    Book(Book),
+}
+
+#[derive(Debug, Deserialize, Serialize, PartialEq)]
+#[serde(untagged)]
+enum Book {
+    /// Publication: Order book levels. On subscription, a snapshot will be published at the specified depth, following the snapshot, level updates will be published
+    ///
+    /// **Example of snapshot payload**
+    ///
+    ///```json
+    /// [
+    ///   0,
+    ///   {
+    ///     "as": [
+    ///       [
+    ///         "5541.30000",
+    ///         "2.50700000",
+    ///         "1534614248.123678"
+    ///       ],
+    ///       [
+    ///         "5541.80000",
+    ///         "0.33000000",
+    ///         "1534614098.345543"
+    ///       ],
+    ///       [
+    ///         "5542.70000",
+    ///         "0.64700000",
+    ///         "1534614244.654432"
+    ///       ]
+    ///     ],
+    ///     "bs": [
+    ///       [
+    ///         "5541.20000",
+    ///         "1.52900000",
+    ///         "1534614248.765567"
+    ///       ],
+    ///       [
+    ///         "5539.90000",
+    ///         "0.30000000",
+    ///         "1534614241.769870"
+    ///       ],
+    ///       [
+    ///         "5539.50000",
+    ///         "5.00000000",
+    ///         "1534613831.243486"
+    ///       ]
+    ///     ]
+    ///   },
+    ///   "book-100",
+    ///   "XBT/USD"
+    /// ]
+    ///```
+    Snapshot {
         /// Array of price levels, ascending from best ask
         #[serde(rename = "as")]
         asks: Vec<Level>,
@@ -382,7 +385,123 @@ enum Payload {
         /// Array of price levels, descending from best bid
         #[serde(rename = "bs")]
         bids: Vec<Level>,
-    }
+    },
+
+    /// Publication: Order book levels. On subscription, a snapshot will be published at the specified depth, following the snapshot, level updates will be published
+    ///
+    /// **Example of update payload**
+    ///
+    /// ```json
+    /// [
+    ///  1234,
+    ///  {
+    ///    "a": [
+    ///      [
+    ///        "5541.30000",
+    ///        "2.50700000",
+    ///        "1534614248.456738"
+    ///      ],
+    ///      [
+    ///        "5542.50000",
+    ///        "0.40100000",
+    ///        "1534614248.456738"
+    ///      ]
+    ///    ],
+    ///    "c": "974942666"
+    ///  },
+    ///  "book-10",
+    ///  "XBT/USD"
+    ///]
+    ///
+    ///[
+    ///  1234,
+    ///  {
+    ///    "b": [
+    ///      [
+    ///        "5541.30000",
+    ///        "0.00000000",
+    ///        "1534614335.345903"
+    ///      ]
+    ///    ],
+    ///    "c": "974942666"
+    ///  },
+    ///  "book-10",
+    ///  "XBT/USD"
+    ///]
+    ///
+    ///[
+    ///  1234,
+    ///  {
+    ///    "a": [
+    ///      [
+    ///        "5541.30000",
+    ///        "2.50700000",
+    ///        "1534614248.456738"
+    ///      ],
+    ///      [
+    ///        "5542.50000",
+    ///        "0.40100000",
+    ///        "1534614248.456738"
+    ///      ]
+    ///    ]
+    ///  },
+    ///  {
+    ///    "b": [
+    ///      [
+    ///        "5541.30000",
+    ///        "0.00000000",
+    ///        "1534614335.345903"
+    ///      ]
+    ///    ],
+    ///    "c": "974942666"
+    ///  },
+    ///  "book-10",
+    ///  "XBT/USD"
+    /// ]
+    /// ```
+    ///
+    /// **Example of republish payload**
+    ///
+    /// ```json
+    /// [
+    ///  1234,
+    ///  {
+    ///    "a": [
+    ///      [
+    ///        "5541.30000",
+    ///        "2.50700000",
+    ///        "1534614248.456738",
+    ///        "r"
+    ///      ],
+    ///      [
+    ///        "5542.50000",
+    ///        "0.40100000",
+    ///        "1534614248.456738",
+    ///        "r"
+    ///      ]
+    ///    ],
+    ///    "c": "974942666"
+    ///  },
+    ///  "book-25",
+    ///  "XBT/USD"
+    ///]
+    /// ```
+    Update {
+        /// Ask array of level updates
+        #[serde(default)]
+        #[serde(rename = "a")]
+        asks: Option<Vec<Level>>,
+
+        /// Bid array of level updates
+        #[serde(default)]
+        #[serde(rename = "b")]
+        bids: Option<Vec<Level>>,
+
+        /// Optional - Book checksum as a quoted unsigned 32-bit integer, present only within the last update container in the message. See calculation details.
+        #[serde(default)]
+        #[serde(rename = "c")]
+        checksum: Option<String>,
+    },
 }
 
 #[derive(Debug, Deserialize, Serialize, PartialEq)]
@@ -395,6 +514,10 @@ struct Level {
 
     /// Price level last updated, seconds since epoch
     timestamp: Decimal,
+
+    #[serde(default)]
+    /// Optional - "r" in case update is a republished update
+    update_type: Option<String>
 }
 
 // fn deserialize_book<'de, D>(deserializer: D) -> Result<(usize, Levels, String, String), D::Error>
@@ -504,7 +627,7 @@ fn parse(msg: Message) -> Result<Option<InTick>, Error> {
     let e = match msg {
         Message::Binary(x) => { info!("binary {:?}", x); None },
         Message::Text(x) => {
-            info!("{:?}", x);
+            debug!("{:?}", x);
 
             let e = deserialize_event(x)?;
             // if let Event::Data{..} = e {
@@ -548,85 +671,114 @@ mod test {
     use crate::kraken::*;
 
     #[test]
-    fn should_deserialize_book() -> Result<(), Error> {
-        assert_eq!(deserialize_event("[\
-            640,\
-            {\
-                \"as\": [\
-                    [\"0.068010\",\"2.61547960\",\"1652817781.572052\"],\
-                    [\"0.068020\",\"2.80351225\",\"1652817780.290886\"],\
-                    [\"0.068040\",\"24.45938572\",\"1652817780.453451\"],\
-                    [\"0.068050\",\"24.45938596\",\"1652817780.339826\"],\
-                    [\"0.068060\",\"14.63500000\",\"1652817759.528227\"],\
-                    [\"0.068070\",\"48.92440377\",\"1652817779.227643\"],\
-                    [\"0.068080\",\"4.00000000\",\"1652817780.668774\"],\
-                    [\"0.068090\",\"50.90608702\",\"1652817765.593309\"],\
-                    [\"0.068110\",\"18.43030000\",\"1652817774.974343\"],\
-                    [\"0.068120\",\"59.24322805\",\"1652817779.215020\"]\
-                ],\
-                \"bs\":[\
-                    [\"0.067990\",\"29.35934962\",\"1652817780.853167\"],\
-                    [\"0.067980\",\"48.72763614\",\"1652817781.487388\"],\
-                    [\"0.067970\",\"25.55979457\",\"1652817781.624545\"],\
-                    [\"0.067960\",\"48.91046225\",\"1652817780.502996\"],\
-                    [\"0.067950\",\"17.83261805\",\"1652817779.124903\"],\
-                    [\"0.067930\",\"2.11301052\",\"1652817779.101854\"],\
-                    [\"0.067920\",\"48.92972805\",\"1652817779.207823\"],\
-                    [\"0.067900\",\"53.93281284\",\"1652817781.478333\"],\
-                    [\"0.067880\",\"15.00000000\",\"1652817781.574921\"],\
-                    [\"0.067870\",\"2.84944758\",\"1652817779.146792\"]\
-                ]\
-            },\
-            \"book-10\",\
-            \"ETH/XBT\"\
-        ]".to_string())?,
-                   Event::PublicMessage(PublicMessage{
-                       channel_id: 640,
-                       payload: Payload::Book{
-                           bids: vec![
-                               Level { price: dec!(0.067990), volume: dec!(29.35934962), timestamp: dec!(1652817780.853167) },
-                               Level { price: dec!(0.067980), volume: dec!(48.72763614), timestamp: dec!(1652817781.487388) },
-                               Level { price: dec!(0.067970), volume: dec!(25.55979457), timestamp: dec!(1652817781.624545) },
-                               Level { price: dec!(0.067960), volume: dec!(48.91046225), timestamp: dec!(1652817780.502996) },
-                               Level { price: dec!(0.067950), volume: dec!(17.83261805), timestamp: dec!(1652817779.124903) },
-                               Level { price: dec!(0.067930), volume: dec!(2.11301052), timestamp: dec!(1652817779.101854) },
-                               Level { price: dec!(0.067920), volume: dec!(48.92972805), timestamp: dec!(1652817779.207823) },
-                               Level { price: dec!(0.067900), volume: dec!(53.93281284), timestamp: dec!(1652817781.478333) },
-                               Level { price: dec!(0.067880), volume: dec!(15.00000000), timestamp: dec!(1652817781.574921) },
-                               Level { price: dec!(0.067870), volume: dec!(2.84944758), timestamp: dec!(1652817779.146792) }
-                           ],
-                           asks: vec![
-                               Level { price: dec!(0.068010), volume: dec!(2.61547960), timestamp: dec!(1652817781.572052) },
-                               Level { price: dec!(0.068020), volume: dec!(2.80351225), timestamp: dec!(1652817780.290886) },
-                               Level { price: dec!(0.068040), volume: dec!(24.45938572), timestamp: dec!(1652817780.453451) },
-                               Level { price: dec!(0.068050), volume: dec!(24.45938596), timestamp: dec!(1652817780.339826) },
-                               Level { price: dec!(0.068060), volume: dec!(14.63500000), timestamp: dec!(1652817759.528227) },
-                               Level { price: dec!(0.068070), volume: dec!(48.92440377), timestamp: dec!(1652817779.227643) },
-                               Level { price: dec!(0.068080), volume: dec!(4.00000000), timestamp: dec!(1652817780.668774) },
-                               Level { price: dec!(0.068090), volume: dec!(50.90608702), timestamp: dec!(1652817765.593309) },
-                               Level { price: dec!(0.068110), volume: dec!(18.43030000), timestamp: dec!(1652817774.974343) },
-                               Level { price: dec!(0.068120), volume: dec!(59.24322805), timestamp: dec!(1652817779.215020) }
-                           ],
-                       },
-                       channel_name: "book-10".to_string(),
-                       pair: "ETH/XBT".to_string()
-                   }));
+    fn should_deserialize_book_snapshot() -> Result<(), Error> {
+        assert_eq!(deserialize_event(r#"
+        [
+            640,
+            {
+                "as": [
+                    ["0.068010","2.61547960","1652817781.572052"],
+                    ["0.068020","2.80351225","1652817780.290886"],
+                    ["0.068040","24.45938572","1652817780.453451"],
+                    ["0.068050","24.45938596","1652817780.339826"],
+                    ["0.068060","14.63500000","1652817759.528227"],
+                    ["0.068070","48.92440377","1652817779.227643"],
+                    ["0.068080","4.00000000","1652817780.668774"],
+                    ["0.068090","50.90608702","1652817765.593309"],
+                    ["0.068110","18.43030000","1652817774.974343"],
+                    ["0.068120","59.24322805","1652817779.215020"]
+                ],
+                "bs":[
+                    ["0.067990","29.35934962","1652817780.853167"],
+                    ["0.067980","48.72763614","1652817781.487388"],
+                    ["0.067970","25.55979457","1652817781.624545"],
+                    ["0.067960","48.91046225","1652817780.502996"],
+                    ["0.067950","17.83261805","1652817779.124903"],
+                    ["0.067930","2.11301052","1652817779.101854"],
+                    ["0.067920","48.92972805","1652817779.207823"],
+                    ["0.067900","53.93281284","1652817781.478333"],
+                    ["0.067880","15.00000000","1652817781.574921"],
+                    ["0.067870","2.84944758","1652817779.146792"]
+                ]
+            },
+            "book-10",
+            "ETH/XBT"
+        ]"#.to_string())?, Event::PublicMessage(PublicMessage{
+            channel_id: 640,
+                payload: Payload::Book(Book::Snapshot {
+                    bids: vec![
+                        Level { price: dec!(0.067990), volume: dec!(29.35934962), timestamp: dec!(1652817780.853167), update_type: None },
+                        Level { price: dec!(0.067980), volume: dec!(48.72763614), timestamp: dec!(1652817781.487388), update_type: None },
+                        Level { price: dec!(0.067970), volume: dec!(25.55979457), timestamp: dec!(1652817781.624545), update_type: None },
+                        Level { price: dec!(0.067960), volume: dec!(48.91046225), timestamp: dec!(1652817780.502996), update_type: None },
+                        Level { price: dec!(0.067950), volume: dec!(17.83261805), timestamp: dec!(1652817779.124903), update_type: None },
+                        Level { price: dec!(0.067930), volume: dec!(2.11301052), timestamp: dec!(1652817779.101854), update_type: None },
+                        Level { price: dec!(0.067920), volume: dec!(48.92972805), timestamp: dec!(1652817779.207823), update_type: None },
+                        Level { price: dec!(0.067900), volume: dec!(53.93281284), timestamp: dec!(1652817781.478333), update_type: None },
+                        Level { price: dec!(0.067880), volume: dec!(15.00000000), timestamp: dec!(1652817781.574921), update_type: None },
+                        Level { price: dec!(0.067870), volume: dec!(2.84944758), timestamp: dec!(1652817779.146792), update_type: None },
+                    ],
+                    asks: vec![
+                        Level { price: dec!(0.068010), volume: dec!(2.61547960), timestamp: dec!(1652817781.572052), update_type: None },
+                        Level { price: dec!(0.068020), volume: dec!(2.80351225), timestamp: dec!(1652817780.290886), update_type: None },
+                        Level { price: dec!(0.068040), volume: dec!(24.45938572), timestamp: dec!(1652817780.453451), update_type: None },
+                        Level { price: dec!(0.068050), volume: dec!(24.45938596), timestamp: dec!(1652817780.339826), update_type: None },
+                        Level { price: dec!(0.068060), volume: dec!(14.63500000), timestamp: dec!(1652817759.528227), update_type: None },
+                        Level { price: dec!(0.068070), volume: dec!(48.92440377), timestamp: dec!(1652817779.227643), update_type: None },
+                        Level { price: dec!(0.068080), volume: dec!(4.00000000), timestamp: dec!(1652817780.668774), update_type: None },
+                        Level { price: dec!(0.068090), volume: dec!(50.90608702), timestamp: dec!(1652817765.593309), update_type: None },
+                        Level { price: dec!(0.068110), volume: dec!(18.43030000), timestamp: dec!(1652817774.974343), update_type: None },
+                        Level { price: dec!(0.068120), volume: dec!(59.24322805), timestamp: dec!(1652817779.215020), update_type: None },
+                    ],
+                }),
+                channel_name: "book-10".to_string(),
+                pair: "ETH/XBT".to_string(),
+            }));
+        Ok(())
+    }
+
+    #[test]
+    fn should_deserialize_book_update() -> Result<(), Error> {
+        assert_eq!(deserialize_event(r#"
+        [
+            640,
+            {
+                "b":[
+                    ["0.067670","30.32313249","1652895615.219798"]
+                ],
+                "c":"1980194141"
+            },
+            "book-10",
+            "ETH/XBT"
+        ]"#.to_string())?, Event::PublicMessage(PublicMessage{
+            channel_id: 640,
+            payload: Payload::Book(Book::Update {
+                asks: None,
+                bids: Some(vec![
+                    Level { price: dec!(0.067670), volume: dec!(30.32313249), timestamp: dec!(1652895615.219798), update_type: None },
+                ]),
+                checksum: Some("1980194141".to_string()),
+            }),
+            channel_name: "book-10".to_string(),
+            pair: "ETH/XBT".to_string(),
+        }));
         Ok(())
     }
 
     #[test]
     fn should_deserialize_subscription() -> Result<(), Error> {
-        assert_eq!(deserialize_event("{\
-            \"channelID\":640,\
-            \"channelName\":\"book-10\",\
-            \"event\":\"subscriptionStatus\",\
-            \"pair\":\"ETH/XBT\",\
-            \"status\":\"subscribed\",\
-            \"subscription\":{\
-                \"depth\":10,\
-                \"name\":\"book\"\
-            }\
-        }".to_string())?, Event::GeneralMessage(GeneralMessage::SubscriptionStatus{
+        assert_eq!(deserialize_event(r#"
+        {
+            "channelID":640,
+            "channelName":"book-10",
+            "event":"subscriptionStatus",
+            "pair":"ETH/XBT",
+            "status":"subscribed",
+            "subscription":{
+                "depth":10,
+                "name":"book"
+            }
+        }"#.to_string())?, Event::GeneralMessage(GeneralMessage::SubscriptionStatus{
             channel_name: "book-10".to_string(),
             reqid: None, 
             pair: Some("ETH/XBT".to_string()),
@@ -636,12 +788,11 @@ mod test {
                 interval: None, 
                 maxratecount: None, 
                 name: SubscriptionType::Book,
-                token: None 
+                token: None,
             }, 
             error_message: None, 
-            channel_id: Some(640)
+            channel_id: Some(640),
         }));
-
 
         Ok(())
     }
