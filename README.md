@@ -16,6 +16,9 @@ USAGE:
 
 OPTIONS:
     -h, --help               Print help information
+        --no-binance         (Optional) Don't show Binance in gRPC stream. Default: false
+        --no-bitstamp        (Optional) Don't show Bitstamp in gRPC stream. Default: false
+        --no-kraken          (Optional) Don't show Kraken in gRPC stream. Default: false
     -p, --port <PORT>        (Optional) Port number on which the the gRPC server will be hosted.
                              Default: 50051
     -s, --symbol <SYMBOL>    (Optional) Currency pair to subscribe to. Default: ETH/BTC
@@ -30,8 +33,14 @@ or with logs and options:
 ```
 env RUST_LOG=info cargo run --bin orderly-server -- --symbol ETH/BTC --port 50051
 ```
+Exclude certain exchanges:
 
-<img src="https://user-images.githubusercontent.com/1086619/168685536-b4f244c2-596b-4295-a253-a2382b5e095d.jpg" width="700"/>
+```
+cargo run --bin orderly-server -- --no-binance --no-bitstamp
+```
+
+
+<img src="https://user-images.githubusercontent.com/1086619/169376599-7eccdb75-08ad-4273-a18a-197ebd53dd63.jpg" width="700"/>
 
 Client
 -----

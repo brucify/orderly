@@ -597,63 +597,6 @@ impl ToLevel for Level {
     }
 }
 
-// fn deserialize_book<'de, D>(deserializer: D) -> Result<(usize, Levels, String, String), D::Error>
-//     where
-//         // T: Deserialize<'de> + Ord,
-//         D: Deserializer<'de>,
-// {
-//     struct BookVisitor(PhantomData<fn() -> (usize, Levels, String, String)>);
-//
-//     impl<'de> Visitor<'de> for BookVisitor
-//         // where
-//         //     T: Deserialize<'de> + Ord,
-//     {
-//         /// Return type of this visitor. This visitor computes the max of a
-//         /// sequence of values of type T, so the type of the maximum is T.
-//         type Value = (usize, Levels, String, String);
-//
-//         fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-//             formatter.write_str("a nonempty sequence of numbers")
-//         }
-//
-//         fn visit_seq<S>(self, mut seq: S) -> Result<(usize, Levels, String, String), S::Error>
-//             where
-//                 S: SeqAccess<'de>,
-//         {
-//             // Start with max equal to the first value in the seq.
-//             let channel_id = seq.next_element()?.ok_or_else(||
-//                 // Cannot take the maximum of an empty seq.
-//                 de::Error::custom("no values in seq when looking for channel_id")
-//             )?;
-//
-//             let levels = seq.next_element()?.ok_or_else(||
-//                 // Cannot take the maximum of an empty seq.
-//                 de::Error::custom("no values in seq when looking for levels")
-//             )?;
-//
-//             let channel_name = seq.next_element()?.ok_or_else(||
-//                 // Cannot take the maximum of an empty seq.
-//                 de::Error::custom("no values in seq when looking for channel_name")
-//             )?;
-//
-//             let pair = seq.next_element()?.ok_or_else(||
-//                 // Cannot take the maximum of an empty seq.
-//                 de::Error::custom("no values in seq when looking for pair")
-//             )?;
-//
-//             let book = (channel_id, levels, channel_name, pair);
-//
-//             Ok(book)
-//         }
-//     }
-//
-//     // Create the visitor and ask the deserializer to drive it. The
-//     // deserializer will call visitor.visit_seq() if a seq is present in
-//     // the input data.
-//     let visitor = BookVisitor(PhantomData);
-//     deserializer.deserialize_seq(visitor)
-// }
-
 #[derive(Debug, Deserialize, Serialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 enum SubscriptionType {

@@ -11,6 +11,15 @@ struct Cli {
     #[clap(short, long, help = "(Optional) Port number on which the the gRPC server will be hosted. Default: 50051")]
     port: Option<usize>,
 
+    #[clap(long, help = "(Optional) Disable Bitstamp. Default: false")]
+    no_bitstamp: bool,
+
+    #[clap(long, help = "(Optional) Disable Binance. Default: false")]
+    no_binance: bool,
+
+    #[clap(long, help = "(Optional) Disable Kraken. Default: false")]
+    no_kraken: bool,
+
 }
 
 #[tokio::main]
@@ -19,7 +28,11 @@ async fn main() {
     let args = Cli::parse();
     let symbol: String = args.symbol.unwrap_or("ETH/BTC".to_string());
     let port: usize = args.port.unwrap_or(50051);
+    let no_bitstamp: bool = args.no_bitstamp;
+    let no_binance: bool = args.no_binance;
+    let no_kraken: bool = args.no_kraken;
 
-    orderly::run(&symbol, port).await.unwrap();
+    orderly::run(&symbol, port,
+                 no_bitstamp, no_binance, no_kraken).await.unwrap();
 }
 

@@ -9,7 +9,14 @@ use std::sync::Arc;
 use tokio::sync::{RwLock, watch};
 use tungstenite::protocol::Message;
 
-pub async fn run(symbol: &String, port: usize) -> Result<(), Error> {
+pub async fn run(
+    symbol: &String,
+    port: usize,
+    no_bitstamp: bool,
+    no_binance: bool,
+    no_kraken: bool,
+) -> Result<(), Error>
+{
     let connector = Connector::new();
     let service = OrderBookService::new(connector.out_ticks.clone());
 
@@ -17,7 +24,8 @@ pub async fn run(symbol: &String, port: usize) -> Result<(), Error> {
         service.serve(port).await.expect("Failed to serve grpc");
     });
 
-    connector.run(symbol).await?;
+    connector.run(symbol,
+                  no_bitstamp, no_binance, no_kraken).await?;
 
     Ok(())
 }
@@ -34,7 +42,14 @@ impl Connector {
         Connector { out_ticks }
     }
 
-    async fn run(&self, symbol: &String) -> Result<(), Error> {
+    async fn run(
+        &self,
+        symbol: &String,
+        no_bitstamp: bool,
+        no_binance: bool,
+        no_kraken: bool,
+    ) -> Result<(), Error>
+    {
         let mut ws_bitstamp = bitstamp::connect(symbol).await?;
         let mut ws_binance = binance::connect(symbol).await?;
         let mut ws_kraken = kraken::connect(symbol).await?;
@@ -50,7 +65,8 @@ impl Connector {
                     let tx = tx_in_ticks.clone();
 
                     let res = handle(ws_msg).and_then(|msg| {
-                        msg.parse_and_send(kraken::parse, tx)
+                        if no_kraken { Ok(()) }
+                        else { msg.parse_and_send(kraken::parse, tx) }
                     });
 
                     if let Err(e) = res {
@@ -62,7 +78,8 @@ impl Connector {
                     let tx = tx_in_ticks.clone();
 
                     let res = handle(ws_msg).and_then(|msg| {
-                        msg.parse_and_send(bitstamp::parse, tx)
+                        if no_bitstamp { Ok(()) }
+                        else { msg.parse_and_send(bitstamp::parse, tx) }
                     });
 
                     if let Err(e) = res {
@@ -74,7 +91,8 @@ impl Connector {
                     let tx = tx_in_ticks.clone();
 
                     let res = handle(ws_msg).and_then(|msg| {
-                        msg.parse_and_send(binance::parse, tx)
+                        if no_binance { Ok(()) }
+                        else { msg.parse_and_send(binance::parse, tx) }
                     });
 
                     if let Err(e) = res {
