@@ -65,6 +65,21 @@ pub(crate) trait ToLevels {
     fn to_levels(&self, depth: usize) -> Vec<Level>;
 }
 
+impl<T> ToLevels for Vec<T>
+    where T: ToLevel + Clone
+{
+    fn to_levels(&self, depth: usize) -> Vec<Level> {
+        let levels = match self.len() > depth {
+            true => self.split_at(depth).0.to_vec(), // only keep 10
+            false => self.clone(),
+        };
+
+        levels.into_iter()
+            .map(|l| l.to_level())
+            .collect()
+    }
+}
+
 #[derive(Debug, PartialEq)]
 pub(crate) struct Exchanges {
     bitstamp: OrderDepths,

@@ -29,19 +29,6 @@ impl ToLevel for Level {
     }
 }
 
-impl ToLevels for Vec<Level> {
-    fn to_levels(&self, depth: usize) -> Vec<orderbook::Level> {
-        let levels = match self.len() > depth {
-            true => self.split_at(depth).0.to_vec(), // only keep 10
-            false => self.clone(),
-        };
-
-        levels.into_iter()
-            .map(|l| l.to_level())
-            .collect()
-    }
-}
-
 impl ToTick for Event {
     /// Converts the `Event` into a `Option<InTick>`. Only keep the top ten levels of bids and asks.
     fn maybe_to_tick(&self) -> Option<InTick> {
