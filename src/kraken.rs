@@ -1,8 +1,7 @@
 use crate::error::Error;
-use crate::orderbook::{InTick, ToTick};
-use crate::websocket;
+use crate::orderbook::{Exchange, InTick, ToLevel, ToLevels, ToTick};
+use crate::{orderbook, websocket};
 use futures::SinkExt;
-use futures::channel::mpsc::UnboundedSender;
 use log::{debug, info};
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
@@ -21,7 +20,44 @@ enum Event {
 impl ToTick for Event {
     /// Converts the `Event` into a `Option<InTick>`. Only keep the top ten levels of bids and asks.
     fn maybe_to_tick(&self) -> Option<InTick> {
-        None
+        match self {
+            Event::PublicMessage(
+                PublicMessage::SinglePayload(
+                    SinglePayload{
+                        payload: Payload::Book(Book::Snapshot {bids, asks}),
+                        ..
+                    })) => {
+                let bids = bids.to_levels(10);
+                let asks = asks.to_levels(10);
+                Some(InTick { exchange: Exchange::Kraken, bids, asks })
+            },
+            Event::PublicMessage(
+                PublicMessage::SinglePayload(
+                    SinglePayload{
+                        payload: Payload::Book(Book::Update {bids, asks, .. }),
+                        ..
+                    })) => {
+                let mut tick = InTick{ exchange: Exchange::Kraken, bids: vec![], asks: vec![] };
+                bids.as_ref().map(|bids| tick.bids = bids.to_levels(10) );
+                asks.as_ref().map(|asks| tick.asks = asks.to_levels(10) );
+                Some(tick)
+            },
+            Event::PublicMessage(
+                PublicMessage::DoublePayload(
+                    DoublePayload{
+                        payload1: Payload::Book(Book::Update {bids: b1, asks: a1, ..}),
+                        payload2: Payload::Book(Book::Update {bids: b2, asks: a2, ..}),
+                        ..
+                    })) => {
+                let mut tick = InTick{ exchange: Exchange::Kraken, bids: vec![], asks: vec![] };
+                b1.as_ref().map(|bids| tick.bids = bids.to_levels(10) );
+                b2.as_ref().map(|bids| tick.bids = bids.to_levels(10) );
+                a1.as_ref().map(|asks| tick.asks = asks.to_levels(10) );
+                a2.as_ref().map(|asks| tick.asks = asks.to_levels(10) );
+                Some(tick)
+            },
+            _ => None,
+        }
     }
 }
 
@@ -538,7 +574,7 @@ enum Book {
     },
 }
 
-#[derive(Debug, Deserialize, Serialize, PartialEq)]
+#[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
 struct Level {
     /// Price level
     price: Decimal,
@@ -552,6 +588,13 @@ struct Level {
     #[serde(default)]
     /// Optional - "r" in case update is a republished update
     update_type: Option<String>
+}
+
+impl ToLevel for Level {
+    /// Converts a `kraken::Level` into a `orderbook::Level`.
+    fn to_level(&self) -> orderbook::Level {
+        orderbook::Level::new(self.price, self.volume, Exchange::Kraken)
+    }
 }
 
 // fn deserialize_book<'de, D>(deserializer: D) -> Result<(usize, Levels, String, String), D::Error>
@@ -654,33 +697,21 @@ async fn subscribe (
     Ok(())
 }
 
-pub(crate) fn parse_and_send(
-    msg: Message,
-    tx: UnboundedSender<InTick>,
-) -> Result<(), Error>
-{
-    parse(msg).and_then(|t| {
-        t.map(|tick| {
-            tokio::spawn(async move {
-                tx.unbounded_send(tick).expect("Failed to send");
-            });
-        });
-        Ok(())
-    })
-}
-
-fn parse(msg: Message) -> Result<Option<InTick>, Error> {
+pub(crate) fn parse(msg: Message) -> Result<Option<InTick>, Error> {
     let e = match msg {
         Message::Binary(x) => { info!("binary {:?}", x); None },
         Message::Text(x) => {
             debug!("{:?}", x);
 
             let e = deserialize_event(x)?;
-            // if let Event::Data{..} = e {
-            //     debug!("{:?}", e);
-            // } else {
-                info!("{:?}", e);
-            // }
+            match e {
+                Event::GeneralMessage(_) => {
+                    info!("{:?}", e);
+                },
+                Event::PublicMessage(_) => {
+                    debug!("{:?}", e);
+                },
+            }
             Some(e)
         },
         Message::Ping(x) => { info!("Ping {:?}", x); None },
@@ -701,7 +732,6 @@ fn serialize(msg: GeneralMessage) -> serde_json::Result<String> {
 
 #[cfg(test)]
 mod test {
-    use chrono::TimeZone;
     use rust_decimal_macros::dec;
     use crate::kraken::*;
 
@@ -932,6 +962,81 @@ mod test {
         Ok(())
     }
 
+    #[test]
+    fn should_convert_to_tick() -> Result<(), Error> {
+        /*
+         * Given
+         */
+        let e = Event::PublicMessage(PublicMessage::SinglePayload(SinglePayload {
+            channel_id: 640,
+            payload: Payload::Book(Book::Snapshot {
+                bids: vec![
+                    Level { price: dec!(0.067990), volume: dec!(29.35934962), timestamp: dec!(1652817780.853167), update_type: None },
+                    Level { price: dec!(0.067980), volume: dec!(48.72763614), timestamp: dec!(1652817781.487388), update_type: None },
+                    Level { price: dec!(0.067970), volume: dec!(25.55979457), timestamp: dec!(1652817781.624545), update_type: None },
+                    Level { price: dec!(0.067960), volume: dec!(48.91046225), timestamp: dec!(1652817780.502996), update_type: None },
+                    Level { price: dec!(0.067950), volume: dec!(17.83261805), timestamp: dec!(1652817779.124903), update_type: None },
+                    Level { price: dec!(0.067930), volume: dec!(2.11301052), timestamp: dec!(1652817779.101854), update_type: None },
+                    Level { price: dec!(0.067920), volume: dec!(48.92972805), timestamp: dec!(1652817779.207823), update_type: None },
+                    Level { price: dec!(0.067900), volume: dec!(53.93281284), timestamp: dec!(1652817781.478333), update_type: None },
+                    Level { price: dec!(0.067880), volume: dec!(15.00000000), timestamp: dec!(1652817781.574921), update_type: None },
+                    Level { price: dec!(0.067870), volume: dec!(2.84944758), timestamp: dec!(1652817779.146792), update_type: None },
+                ],
+                asks: vec![
+                    Level { price: dec!(0.068010), volume: dec!(2.61547960), timestamp: dec!(1652817781.572052), update_type: None },
+                    Level { price: dec!(0.068020), volume: dec!(2.80351225), timestamp: dec!(1652817780.290886), update_type: None },
+                    Level { price: dec!(0.068040), volume: dec!(24.45938572), timestamp: dec!(1652817780.453451), update_type: None },
+                    Level { price: dec!(0.068050), volume: dec!(24.45938596), timestamp: dec!(1652817780.339826), update_type: None },
+                    Level { price: dec!(0.068060), volume: dec!(14.63500000), timestamp: dec!(1652817759.528227), update_type: None },
+                    Level { price: dec!(0.068070), volume: dec!(48.92440377), timestamp: dec!(1652817779.227643), update_type: None },
+                    Level { price: dec!(0.068080), volume: dec!(4.00000000), timestamp: dec!(1652817780.668774), update_type: None },
+                    Level { price: dec!(0.068090), volume: dec!(50.90608702), timestamp: dec!(1652817765.593309), update_type: None },
+                    Level { price: dec!(0.068110), volume: dec!(18.43030000), timestamp: dec!(1652817774.974343), update_type: None },
+                    Level { price: dec!(0.068120), volume: dec!(59.24322805), timestamp: dec!(1652817779.215020), update_type: None },
+                ],
+            }),
+            channel_name: "book-10".to_string(),
+            pair: "ETH/XBT".to_string(),
+        }));
+
+        /*
+         * When
+         */
+        let tick = e.maybe_to_tick();
+
+        /*
+         * Then
+         */
+        assert_eq!(tick, Some(InTick{
+            exchange: Exchange::Kraken,
+            bids: vec![
+                orderbook::Level::new(dec!(0.067990), dec!(29.35934962), Exchange::Kraken),
+                orderbook::Level::new(dec!(0.067980), dec!(48.72763614), Exchange::Kraken),
+                orderbook::Level::new(dec!(0.067970), dec!(25.55979457), Exchange::Kraken),
+                orderbook::Level::new(dec!(0.067960), dec!(48.91046225), Exchange::Kraken),
+                orderbook::Level::new(dec!(0.067950), dec!(17.83261805), Exchange::Kraken),
+                orderbook::Level::new(dec!(0.067930), dec!(2.11301052), Exchange::Kraken),
+                orderbook::Level::new(dec!(0.067920), dec!(48.92972805), Exchange::Kraken),
+                orderbook::Level::new(dec!(0.067900), dec!(53.93281284), Exchange::Kraken),
+                orderbook::Level::new(dec!(0.067880), dec!(15.00000000), Exchange::Kraken),
+                orderbook::Level::new(dec!(0.067870), dec!(2.84944758), Exchange::Kraken),
+            ],
+            asks: vec![
+                orderbook::Level::new(dec!(0.068010), dec!(2.61547960), Exchange::Kraken),
+                orderbook::Level::new(dec!(0.068020), dec!(2.80351225), Exchange::Kraken),
+                orderbook::Level::new(dec!(0.068040), dec!(24.45938572), Exchange::Kraken),
+                orderbook::Level::new(dec!(0.068050), dec!(24.45938596), Exchange::Kraken),
+                orderbook::Level::new(dec!(0.068060), dec!(14.63500000), Exchange::Kraken),
+                orderbook::Level::new(dec!(0.068070), dec!(48.92440377), Exchange::Kraken),
+                orderbook::Level::new(dec!(0.068080), dec!(4.00000000), Exchange::Kraken),
+                orderbook::Level::new(dec!(0.068090), dec!(50.90608702), Exchange::Kraken),
+                orderbook::Level::new(dec!(0.068110), dec!(18.43030000), Exchange::Kraken),
+                orderbook::Level::new(dec!(0.068120), dec!(59.24322805), Exchange::Kraken),
+            ],
+        }));
+
+        Ok(())
+    }
 
 }
 

@@ -32,9 +32,8 @@ impl ToLevel for Level {
 impl ToTick for Event {
     /// Converts the `Event` into a `Option<InTick>`. Only keep the top ten levels of bids and asks.
     fn maybe_to_tick(&self) -> Option<InTick> {
-        let depth = 10;
-        let bids = self.bids.to_levels(depth);
-        let asks = self.asks.to_levels(depth);
+        let bids = self.bids.to_levels(10);
+        let asks = self.asks.to_levels(10);
 
         Some(InTick { exchange: Exchange::Binance, bids, asks })
     }

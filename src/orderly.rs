@@ -2,10 +2,10 @@ use crate::error::Error;
 use crate::grpc::OrderBookService;
 use crate::orderbook::{Exchanges, InTick, OutTick};
 use crate::{bitstamp, stdin, binance, websocket, kraken};
+use futures::channel::mpsc::UnboundedSender;
 use futures::{SinkExt, StreamExt};
 use log::{debug, info};
 use std::sync::Arc;
-use futures::channel::mpsc::UnboundedSender;
 use tokio::sync::{RwLock, watch};
 use tungstenite::protocol::Message;
 
@@ -50,7 +50,7 @@ impl Connector {
                     let tx = tx_in_ticks.clone();
 
                     let res = handle(ws_msg).and_then(|msg| {
-                        kraken::parse_and_send(msg, tx)
+                        msg.parse_and_send(kraken::parse, tx)
                     });
 
                     if let Err(e) = res {

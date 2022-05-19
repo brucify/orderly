@@ -37,9 +37,8 @@ impl ToTick for Event {
     fn maybe_to_tick(&self) -> Option<InTick> {
         match self {
             Event::Data { data, .. } => {
-                let depth = 10;
-                let bids = data.bids.to_levels(depth);
-                let asks = data.asks.to_levels(depth);
+                let bids = data.bids.to_levels(10);
+                let asks = data.asks.to_levels(10);
 
                 Some(InTick { exchange: Exchange::Bitstamp, bids, asks })
             },
