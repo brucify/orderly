@@ -195,7 +195,7 @@ enum GeneralMessage {
     SubscriptionStatus{
         /// Channel Name on successful subscription. For payloads 'ohlc' and 'book', respective interval or depth will be added as suffix.
         #[serde(rename = "channelName")]
-        channel_name: String,
+        channel_name: Option<String>,
 
         /// Optional - matching client originated request ID
         reqid: Option<usize>,
@@ -206,7 +206,7 @@ enum GeneralMessage {
         /// Status of subscription
         status: String,
 
-        subscription: SubscriptionStatus,
+        subscription: Option<SubscriptionStatus>,
 
         /// Error message
         #[serde(rename = "errorMessage")]
@@ -851,19 +851,39 @@ mod test {
                 "name":"book"
             }
         }"#.to_string())?, Event::GeneralMessage(GeneralMessage::SubscriptionStatus{
-            channel_name: "book-10".to_string(),
+            channel_name: Some("book-10".to_string()),
             reqid: None, 
             pair: Some("ETH/XBT".to_string()),
             status: "subscribed".to_string(),
-            subscription: SubscriptionStatus { 
+            subscription: Some(SubscriptionStatus { 
                 depth: Some(10), 
                 interval: None, 
                 maxratecount: None, 
                 name: SubscriptionType::Book,
                 token: None,
-            }, 
+            }), 
             error_message: None, 
             channel_id: Some(640),
+        }));
+
+        Ok(())
+    }
+
+    #[test]
+    fn should_deserialize_subscription_error() -> Result<(), Error> {
+        assert_eq!(deserialize_event(r#"
+        {
+            "errorMessage": "Event(s) not found",
+            "event": "subscriptionStatus",
+            "status": "error"
+        }"#.to_string())?, Event::GeneralMessage(GeneralMessage::SubscriptionStatus{
+            channel_name: None,
+            reqid: None,
+            pair: None,
+            status: "error".to_string(),
+            subscription: None,
+            error_message: Some("Event(s) not found".to_string()),
+            channel_id: None
         }));
 
         Ok(())
