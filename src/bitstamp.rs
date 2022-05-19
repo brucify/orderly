@@ -1,6 +1,6 @@
 use chrono::{DateTime, Utc};
 use crate::error::Error;
-use crate::orderbook::{self, Exchange, InTick, ToLevel, ToTick};
+use crate::orderbook::{self, Exchange, InTick, ToLevel, ToLevels, ToTick};
 use crate::websocket;
 use futures::SinkExt;
 use log::{debug, info};
@@ -38,8 +38,8 @@ impl ToTick for Event {
         match self {
             Event::Data { data, .. } => {
                 let depth = 10;
-                let bids = to_levels(&data.bids, depth);
-                let asks = to_levels(&data.asks, depth);
+                let bids = data.bids.to_levels(depth);
+                let asks = data.asks.to_levels(depth);
 
                 Some(InTick { exchange: Exchange::Bitstamp, bids, asks })
             },
@@ -87,15 +87,17 @@ impl ToLevel for Level {
     }
 }
 
-fn to_levels(levels: &Vec<Level>, depth: usize) -> Vec<orderbook::Level> {
-    let levels = match levels.len() > depth {
-        true => levels.split_at(depth).0.to_vec(), // only keep 10
-        false => levels.clone(),
-    };
+impl ToLevels for Vec<Level> {
+    fn to_levels(&self, depth: usize) -> Vec<orderbook::Level> {
+        let levels = match self.len() > depth {
+            true => self.split_at(depth).0.to_vec(), // only keep 10
+            false => self.clone(),
+        };
 
-    levels.into_iter()
-        .map(|l| l.to_level())
-        .collect()
+        levels.into_iter()
+            .map(|l| l.to_level())
+            .collect()
+    }
 }
 
 type Channel = String;

@@ -61,6 +61,10 @@ pub(crate) trait ToLevel {
     fn to_level(&self) -> Level;
 }
 
+pub(crate) trait ToLevels {
+    fn to_levels(&self, depth: usize) -> Vec<Level>;
+}
+
 #[derive(Debug, PartialEq)]
 pub(crate) struct Exchanges {
     bitstamp: OrderDepths,

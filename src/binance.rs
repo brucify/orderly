@@ -1,5 +1,5 @@
 use crate::error::Error;
-use crate::orderbook::{self, Exchange, InTick, ToLevel, ToTick};
+use crate::orderbook::{self, Exchange, InTick, ToLevel, ToLevels, ToTick};
 use crate::websocket;
 use log::{debug, info};
 use rust_decimal::Decimal;
@@ -29,23 +29,25 @@ impl ToLevel for Level {
     }
 }
 
-fn to_levels(levels: &Vec<Level>, depth: usize) -> Vec<orderbook::Level> {
-    let levels = match levels.len() > depth {
-        true => levels.split_at(depth).0.to_vec(), // only keep 10
-        false => levels.clone(),
-    };
+impl ToLevels for Vec<Level> {
+    fn to_levels(&self, depth: usize) -> Vec<orderbook::Level> {
+        let levels = match self.len() > depth {
+            true => self.split_at(depth).0.to_vec(), // only keep 10
+            false => self.clone(),
+        };
 
-    levels.into_iter()
-        .map(|l| l.to_level())
-        .collect()
+        levels.into_iter()
+            .map(|l| l.to_level())
+            .collect()
+    }
 }
 
 impl ToTick for Event {
     /// Converts the `Event` into a `Option<InTick>`. Only keep the top ten levels of bids and asks.
     fn maybe_to_tick(&self) -> Option<InTick> {
         let depth = 10;
-        let bids = to_levels(&self.bids, depth);
-        let asks = to_levels(&self.asks, depth);
+        let bids = self.bids.to_levels(depth);
+        let asks = self.asks.to_levels(depth);
 
         Some(InTick { exchange: Exchange::Binance, bids, asks })
     }
@@ -53,7 +55,8 @@ impl ToTick for Event {
 
 pub(crate) async fn connect(symbol: &String) -> Result<websocket::WsStream, Error> {
     let depth = 10;
-    let url = format!("{}/{}@depth{}@100ms", BINANCE_WS_URL, symbol.to_lowercase(), depth);
+    let symbol = symbol.to_lowercase().replace("/", "");
+    let url = format!("{}/{}@depth{}@100ms", BINANCE_WS_URL, symbol, depth);
     Ok(websocket::connect(url.as_str()).await?)
 }
 
