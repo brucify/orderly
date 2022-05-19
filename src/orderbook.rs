@@ -215,6 +215,7 @@ impl ExtendAndKeep for LevelsMap {
     /// Merges two `BTreeMap`. Returns everything before the given index.
     fn extend_and_keep(&mut self, other: LevelsMap, i: usize) {
         self.extend(other);
+        self.retain(|_k, v| !v.amount.eq(&dec!(0))); // remove where volume is 0
         if self.len() > i {
             let key = self.keys().collect::<Vec<&Decimal>>()[i].clone();
             self.split_off(&key);
@@ -425,6 +426,87 @@ mod test {
                 Level::new(dec!(13.5), dec!(2), Exchange::Binance),
                 Level::new(dec!(13.75), dec!(3), Exchange::Kraken),
                 Level::new(dec!(14), dec!(1), Exchange::Bitstamp),
+            ],
+        });
+    }
+
+    #[test]
+    fn should_remove_kraken_volumes() {
+        /*
+         * Given
+         */
+        let mut exchanges = Exchanges::new();
+        let t1 = InTick {
+            exchange: Exchange::Kraken,
+            bids: vec![
+                Level::new(dec!(10.75), dec!(3), Exchange::Kraken),
+                Level::new(dec!(9.75), dec!(3), Exchange::Kraken),
+                Level::new(dec!(8.75), dec!(3), Exchange::Kraken),
+                Level::new(dec!(7.75), dec!(3), Exchange::Kraken),
+                Level::new(dec!(6.75), dec!(3), Exchange::Kraken),
+                Level::new(dec!(5.75), dec!(3), Exchange::Kraken),
+                Level::new(dec!(4.75), dec!(3), Exchange::Kraken),
+                Level::new(dec!(3.75), dec!(3), Exchange::Kraken),
+                Level::new(dec!(2.75), dec!(3), Exchange::Kraken),
+                Level::new(dec!(1.75), dec!(3), Exchange::Kraken),
+            ],
+            asks: vec![
+                Level::new(dec!(11.75), dec!(3), Exchange::Kraken),
+                Level::new(dec!(12.75), dec!(3), Exchange::Kraken),
+                Level::new(dec!(13.75), dec!(3), Exchange::Kraken),
+                Level::new(dec!(14.75), dec!(3), Exchange::Kraken),
+                Level::new(dec!(15.75), dec!(3), Exchange::Kraken),
+                Level::new(dec!(16.75), dec!(3), Exchange::Kraken),
+                Level::new(dec!(17.75), dec!(3), Exchange::Kraken),
+                Level::new(dec!(18.75), dec!(3), Exchange::Kraken),
+                Level::new(dec!(19.75), dec!(3), Exchange::Kraken),
+                Level::new(dec!(20.75), dec!(3), Exchange::Kraken),
+            ],
+        };
+        exchanges.update(t1);
+
+        /*
+         * When
+         */
+        let t2 = InTick {
+            exchange: Exchange::Kraken,
+            bids: vec![
+                Level::new(dec!(10.75), dec!(0), Exchange::Kraken),
+                Level::new(dec!(9.75), dec!(0), Exchange::Kraken),
+                Level::new(dec!(8.75), dec!(0), Exchange::Kraken),
+                Level::new(dec!(7.75), dec!(0), Exchange::Kraken),
+                Level::new(dec!(6.75), dec!(0), Exchange::Kraken),
+            ],
+            asks: vec![
+                Level::new(dec!(11.75), dec!(0), Exchange::Kraken),
+                Level::new(dec!(12.75), dec!(0), Exchange::Kraken),
+                Level::new(dec!(13.75), dec!(0), Exchange::Kraken),
+                Level::new(dec!(14.75), dec!(0), Exchange::Kraken),
+                Level::new(dec!(15.75), dec!(0), Exchange::Kraken),
+            ],
+        };
+        exchanges.update(t2);
+
+
+        /*
+         * Then
+         */
+        let out_tick = exchanges.to_tick();
+        assert_eq!(out_tick, OutTick {
+            spread: dec!(11),
+            bids:vec![
+                Level::new(dec!(5.75), dec!(3), Exchange::Kraken),
+                Level::new(dec!(4.75), dec!(3), Exchange::Kraken),
+                Level::new(dec!(3.75), dec!(3), Exchange::Kraken),
+                Level::new(dec!(2.75), dec!(3), Exchange::Kraken),
+                Level::new(dec!(1.75), dec!(3), Exchange::Kraken),
+            ],
+            asks: vec![
+                Level::new(dec!(16.75), dec!(3), Exchange::Kraken),
+                Level::new(dec!(17.75), dec!(3), Exchange::Kraken),
+                Level::new(dec!(18.75), dec!(3), Exchange::Kraken),
+                Level::new(dec!(19.75), dec!(3), Exchange::Kraken),
+                Level::new(dec!(20.75), dec!(3), Exchange::Kraken),
             ],
         });
     }
