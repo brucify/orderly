@@ -120,7 +120,8 @@ async fn subscribe (
     symbol: &String,
 ) -> Result<(), Error>
 {
-    let channel = format!("order_book_{}", symbol.to_lowercase());
+    let symbol = symbol.to_lowercase().replace("/", "");
+    let channel = format!("order_book_{}", symbol);
     let msg = serialize(Event::Subscribe{ data: OutSubscription { channel } })?;
     rx.send(Message::Text(msg)).await?;
     Ok(())

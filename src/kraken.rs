@@ -1,6 +1,7 @@
 use crate::error::Error;
 use crate::orderbook::{InTick, ToTick};
 use crate::websocket;
+use futures::SinkExt;
 use futures::channel::mpsc::UnboundedSender;
 use log::{debug, info};
 use rust_decimal::Decimal;
@@ -123,6 +124,7 @@ enum GeneralMessage {
     #[serde(rename = "subscribe")]
     Subscribe{
         /// Optional - client originated ID reflected in response message
+        #[serde(skip_serializing_if = "Option::is_none")]
         reqid: Option<usize>,
 
         /// Optional - Array of currency pairs. Format of each pair is "A/B", where A and B are ISO 4217-A3 for standardized assets and popular unique symbol if not standardized.
@@ -134,6 +136,7 @@ enum GeneralMessage {
     #[serde(rename = "unsubscribe")]
     Unsubscribe{
         /// Optional - client originated ID reflected in response message
+        #[serde(skip_serializing_if = "Option::is_none")]
         reqid: Option<usize>,
 
         /// Optional - Array of currency pairs. Format of each pair is "A/B", where A and B are ISO 4217-A3 for standardized assets and popular unique symbol if not standardized.
@@ -256,36 +259,44 @@ enum Status {
 #[derive(Debug, Deserialize, Serialize, PartialEq)]
 struct Subscription {
     /// Optional - depth associated with book subscription in number of levels each side, default 10. Valid Options are: 10, 25, 100, 500, 1000
+    #[serde(skip_serializing_if = "Option::is_none")]
     depth: Option<usize>,
 
     /// Optional - Time interval associated with ohlc subscription in minutes. Default 1. Valid Interval values: 1|5|15|30|60|240|1440|10080|21600
+    #[serde(skip_serializing_if = "Option::is_none")]
     interval: Option<usize>,
 
     /// book|ohlc|openOrders|ownTrades|spread|ticker|trade|*, * for all available channels depending on the connected environment
     name: SubscriptionType,
 
     /// Optional - whether to send rate-limit counter in updates (supported only for openOrders subscriptions; default = false)
+    #[serde(skip_serializing_if = "Option::is_none")]
     ratecounter: Option<bool>,
 
     /// Optional - whether to send historical feed data snapshot upon subscription (supported only for ownTrades subscriptions; default = true)
+    #[serde(skip_serializing_if = "Option::is_none")]
     snapshot: Option<bool>,
 
     /// Optional - base64-encoded authentication token for private-data endpoints
+    #[serde(skip_serializing_if = "Option::is_none")]
     token: Option<String>,
 }
 
 #[derive(Debug, Deserialize, Serialize, PartialEq)]
 struct Unsubscription {
     /// Optional - depth associated with book subscription in number of levels each side, default 10. Valid Options are: 10, 25, 100, 500, 1000
+    #[serde(skip_serializing_if = "Option::is_none")]
     depth: Option<usize>,
 
     /// Optional - Time interval associated with ohlc subscription in minutes. Default 1. Valid Interval values: 1|5|15|30|60|240|1440|10080|21600
+    #[serde(skip_serializing_if = "Option::is_none")]
     interval: Option<usize>,
 
     /// book|ohlc|openOrders|ownTrades|spread|ticker|trade|*, * for all available channels depending on the connected environment
     name: SubscriptionType,
 
     /// Optional - base64-encoded authentication token for private-data endpoints
+    #[serde(skip_serializing_if = "Option::is_none")]
     token: Option<String>,
 }
 
@@ -614,22 +625,34 @@ enum SubscriptionType {
     AllAvailable,
 }
 
-pub(crate) async fn connect(_symbol: &String) -> Result<websocket::WsStream, Error> {
-    let ws_stream = websocket::connect(KRAKEN_WS_URL).await?;
-    // subscribe(&mut ws_stream, symbol).await?;
+pub(crate) async fn connect(symbol: &String) -> Result<websocket::WsStream, Error> {
+    let mut ws_stream = websocket::connect(KRAKEN_WS_URL).await?;
+    subscribe(&mut ws_stream, symbol).await?;
     Ok(ws_stream)
 }
 
-// async fn subscribe (
-//     rx: &mut websocket::WsStream,
-//     symbol: &String,
-// ) -> Result<(), Error>
-// {
-//     let channel = format!("order_book_{}", symbol.to_lowercase());
-//     let msg = serialize(Event::Subscribe{ data: OutSubscription { channel } })?;
-//     rx.send(Message::Text(msg)).await?;
-//     Ok(())
-// }
+async fn subscribe (
+    rx: &mut websocket::WsStream,
+    symbol: &String,
+) -> Result<(), Error>
+{
+    let pair = symbol.to_uppercase();
+    let sub = GeneralMessage::Subscribe{
+        reqid: None,
+        pair: vec![pair],
+        subscription: Subscription {
+            depth: Some(10),
+            name: SubscriptionType::Book,
+            interval: None,
+            ratecounter: None,
+            snapshot: None,
+            token: None,
+        },
+    };
+    let msg = serialize(sub)?;
+    rx.send(Message::Text(msg)).await?;
+    Ok(())
+}
 
 pub(crate) fn parse_and_send(
     msg: Message,
@@ -668,24 +691,13 @@ fn parse(msg: Message) -> Result<Option<InTick>, Error> {
     Ok(e.map(|e| e.maybe_to_tick()).flatten())
 }
 
-// async fn subscribe (
-//     rx: &mut websocket::WsStream,
-//     symbol: &String,
-// ) -> Result<(), Error>
-// {
-//     let channel = format!("order_book_{}", symbol.to_lowercase());
-//     let msg = serialize(Event::Subscribe{ data: OutSubscription { channel } })?;
-//     rx.send(Message::Text(msg)).await?;
-//     Ok(())
-// }
-
 fn deserialize_event(s: String) -> serde_json::Result<Event> {
     Ok(serde_json::from_str(&s)?)
 }
 
-// fn serialize(e: Event) -> serde_json::Result<String> {
-//     Ok(serde_json::to_string(&e)?)
-// }
+fn serialize(msg: GeneralMessage) -> serde_json::Result<String> {
+    Ok(serde_json::to_string(&Event::GeneralMessage(msg))?)
+}
 
 #[cfg(test)]
 mod test {
@@ -888,6 +900,38 @@ mod test {
 
         Ok(())
     }
+
+    #[test]
+    fn should_serialize_subscription() -> Result<(), Error> {
+        let mut serialized = r#"
+        {
+            "event": "subscribe",
+            "pair": [
+                "ETH/BTC"
+            ],
+            "subscription": {
+                "depth": 10,
+                "name": "book"
+            }
+        }"#.to_string();
+        serialized.retain(|c| !c.is_whitespace());
+
+        assert_eq!(serialize(GeneralMessage::Subscribe{
+            reqid: None,
+            pair: vec!["ETH/BTC".to_string()],
+            subscription: Subscription {
+                depth: Some(10),
+                name: SubscriptionType::Book,
+                interval: None,
+                ratecounter: None,
+                snapshot: None,
+                token: None,
+            },
+        })?, serialized);
+
+        Ok(())
+    }
+
 
 }
 
