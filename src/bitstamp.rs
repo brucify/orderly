@@ -3,7 +3,6 @@ use crate::error::Error;
 use crate::orderbook::{self, Exchange, InTick, ToLevel, ToTick};
 use crate::websocket;
 use futures::SinkExt;
-use futures::channel::mpsc::UnboundedSender;
 use log::{debug, info};
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
@@ -107,22 +106,7 @@ pub(crate) async fn connect(symbol: &String) -> Result<websocket::WsStream, Erro
     Ok(ws_stream)
 }
 
-pub(crate) fn parse_and_send(
-    msg: Message,
-    tx: UnboundedSender<InTick>,
-) -> Result<(), Error>
-{
-    parse(msg).and_then(|t| {
-        t.map(|tick| {
-            tokio::spawn(async move {
-                tx.unbounded_send(tick).expect("Failed to send");
-            });
-        });
-        Ok(())
-    })
-}
-
-fn parse(msg: Message) -> Result<Option<InTick>, Error> {
+pub(crate) fn parse(msg: Message) -> Result<Option<InTick>, Error> {
     let e = match msg {
         Message::Binary(x) => { info!("binary {:?}", x); None },
         Message::Text(x) => {

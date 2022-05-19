@@ -1,10 +1,11 @@
 use crate::error::Error;
 use crate::grpc::OrderBookService;
-use crate::orderbook::{Exchanges, OutTick};
+use crate::orderbook::{Exchanges, InTick, OutTick};
 use crate::{bitstamp, stdin, binance, websocket};
 use futures::{SinkExt, StreamExt};
 use log::{debug, info};
 use std::sync::Arc;
+use futures::channel::mpsc::UnboundedSender;
 use tokio::sync::{RwLock, watch};
 use tungstenite::protocol::Message;
 
@@ -48,7 +49,7 @@ impl Connector {
                     let tx = tx_in_ticks.clone();
 
                     let res = handle(ws_msg).and_then(|msg| {
-                        bitstamp::parse_and_send(msg, tx)
+                        msg.parse_and_send(bitstamp::parse, tx)
                     });
 
                     if let Err(e) = res {
@@ -60,7 +61,7 @@ impl Connector {
                     let tx = tx_in_ticks.clone();
 
                     let res = handle(ws_msg).and_then(|msg| {
-                        binance::parse_and_send(msg, tx)
+                        msg.parse_and_send(binance::parse, tx)
                     });
 
                     if let Err(e) = res {
@@ -115,4 +116,30 @@ fn handle(
     })?;
 
     Ok(msg)
+}
+
+trait ParseAndSend {
+    fn parse_and_send(
+        self,
+        parse: fn(Message) -> Result<Option<InTick>, Error>,
+        tx: UnboundedSender<InTick>,
+    ) -> Result<(), Error>;
+}
+
+impl ParseAndSend for Message {
+    fn parse_and_send(
+        self,
+        parse: fn(Message) -> Result<Option<InTick>, Error>,
+        tx: UnboundedSender<InTick>,
+    ) -> Result<(), Error>
+    {
+        parse(self).and_then(|t| {
+            t.map(|tick| {
+                tokio::spawn(async move {
+                    tx.unbounded_send(tick).expect("Failed to send");
+                });
+            });
+            Ok(())
+        })
+    }
 }
