@@ -308,11 +308,34 @@ struct SubscriptionStatus {
 }
 
 #[derive(Debug, Deserialize, Serialize, PartialEq)]
-struct PublicMessage {
+#[serde(untagged)]
+enum PublicMessage {
+    SinglePayload(SinglePayload),
+    DoublePayload(DoublePayload),
+}
+
+#[derive(Debug, Deserialize, Serialize, PartialEq)]
+struct SinglePayload {
     /// Channel ID of subscription - deprecated, use channelName and pair
     channel_id: usize,
 
     payload: Payload,
+
+    /// Channel Name of subscription
+    channel_name: String,
+
+    /// Asset pair
+    pair: String,
+}
+
+#[derive(Debug, Deserialize, Serialize, PartialEq)]
+struct DoublePayload {
+    /// Channel ID of subscription - deprecated, use channelName and pair
+    channel_id: usize,
+
+    payload1: Payload,
+
+    payload2: Payload,
 
     /// Channel Name of subscription
     channel_name: String,
@@ -703,7 +726,7 @@ mod test {
             },
             "book-10",
             "ETH/XBT"
-        ]"#.to_string())?, Event::PublicMessage(PublicMessage{
+        ]"#.to_string())?, Event::PublicMessage(PublicMessage::SinglePayload(SinglePayload {
             channel_id: 640,
                 payload: Payload::Book(Book::Snapshot {
                     bids: vec![
@@ -733,12 +756,13 @@ mod test {
                 }),
                 channel_name: "book-10".to_string(),
                 pair: "ETH/XBT".to_string(),
-            }));
+            }))
+        );
         Ok(())
     }
 
     #[test]
-    fn should_deserialize_book_update() -> Result<(), Error> {
+    fn should_deserialize_book_update_single_payload() -> Result<(), Error> {
         assert_eq!(deserialize_event(r#"
         [
             640,
@@ -750,7 +774,7 @@ mod test {
             },
             "book-10",
             "ETH/XBT"
-        ]"#.to_string())?, Event::PublicMessage(PublicMessage{
+        ]"#.to_string())?, Event::PublicMessage(PublicMessage::SinglePayload(SinglePayload {
             channel_id: 640,
             payload: Payload::Book(Book::Update {
                 asks: None,
@@ -761,7 +785,55 @@ mod test {
             }),
             channel_name: "book-10".to_string(),
             pair: "ETH/XBT".to_string(),
-        }));
+        })));
+        Ok(())
+    }
+
+    #[test]
+    fn should_deserialize_book_update_double_payload() -> Result<(), Error> {
+        assert_eq!(deserialize_event(r#"
+        [
+            640,
+            {
+                "a": [
+                    [
+                    "0.067390",
+                    "31.09081272",
+                    "1652905268.998332"
+                    ]
+                ]
+            },
+            {
+                "b": [
+                    [
+                    "0.067290",
+                    "53.27428999",
+                    "1652905268.998444"
+                    ]
+                ],
+                "c": "201829889"
+            },
+            "book-10",
+            "ETH/XBT"
+        ]"#.to_string())?, Event::PublicMessage(PublicMessage::DoublePayload(DoublePayload {
+            channel_id: 640,
+            payload1: Payload::Book(Book::Update {
+                asks: Some(vec![
+                    Level { price: dec!(0.067390), volume: dec!(31.09081272), timestamp: dec!(1652905268.998332), update_type: None },
+                ]),
+                bids: None,
+                checksum: None,
+            }),
+            payload2: Payload::Book(Book::Update {
+                asks: None,
+                bids: Some(vec![
+                    Level { price: dec!(0.067290), volume: dec!(53.27428999), timestamp: dec!(1652905268.998444), update_type: None },
+                ]),
+                checksum: Some("201829889".to_string()),
+            }),
+            channel_name: "book-10".to_string(),
+            pair: "ETH/XBT".to_string(),
+        })));
         Ok(())
     }
 
