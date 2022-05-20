@@ -35,6 +35,7 @@ pub(crate) enum Exchange {
     Bitstamp,
     Binance,
     Kraken,
+    Coinbase,
 }
 
 impl ToString for Exchange {
@@ -43,6 +44,7 @@ impl ToString for Exchange {
             Exchange::Bitstamp => "bitstamp".to_string(),
             Exchange::Binance => "binance".to_string(),
             Exchange::Kraken => "kraken".to_string(),
+            Exchange::Coinbase => "coinbase".to_string(),
         }
     }
 }
@@ -142,7 +144,8 @@ impl Exchanges {
 
                 self.kraken.bids.extend_and_keep(bids, 10);
                 self.kraken.asks.extend_and_keep(asks, 10);
-            }
+            },
+            Exchange::Coinbase => {}
         }
     }
 

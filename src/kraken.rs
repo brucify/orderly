@@ -62,7 +62,7 @@ impl ToTick for Event {
 }
 
 #[derive(Debug, Deserialize, Serialize, PartialEq)]
-#[serde(tag = "event")]
+#[serde(tag = "event", rename_all = "camelCase")]
 enum GeneralMessage {
     /// Request. Client can ping server to determine whether connection is alive,
     /// server responds with pong. This is an application level ping as opposed to
@@ -75,7 +75,6 @@ enum GeneralMessage {
     ///   "reqid": 42
     /// }
     /// ```
-    #[serde(rename = "ping")]
     Ping{
         /// Optional - client originated ID reflected in response message
         reqid: Option<usize>
@@ -90,13 +89,11 @@ enum GeneralMessage {
     ///   "reqid": 42
     /// }
     ///```
-    #[serde(rename = "pong")]
     Pong{
         /// Optional - matching client originated request ID
         reqid: Option<usize>
     },
 
-    #[serde(rename = "heartbeat")]
     Heartbeat{},
 
     /// Publication: Status sent on connection or system status changes.
@@ -111,7 +108,6 @@ enum GeneralMessage {
     ///   "version": "1.0.0"
     /// }
     /// ```
-    #[serde(rename = "systemStatus")]
     SystemStatus{
         /// Optional - Connection ID (will appear only in initial connection status message)
         #[serde(rename = "connectionID")]
@@ -157,7 +153,6 @@ enum GeneralMessage {
     ///  }
     ///}
     ///```
-    #[serde(rename = "subscribe")]
     Subscribe{
         /// Optional - client originated ID reflected in response message
         #[serde(skip_serializing_if = "Option::is_none")]
@@ -169,7 +164,6 @@ enum GeneralMessage {
         subscription: Subscription,
     },
 
-    #[serde(rename = "unsubscribe")]
     Unsubscribe{
         /// Optional - client originated ID reflected in response message
         #[serde(skip_serializing_if = "Option::is_none")]
@@ -230,7 +224,6 @@ enum GeneralMessage {
     ///  }
     ///}
     ///```
-    #[serde(rename = "subscriptionStatus")]
     SubscriptionStatus{
         /// Channel Name on successful subscription. For payloads 'ohlc' and 'book', respective interval or depth will be added as suffix.
         #[serde(rename = "channelName")]
@@ -270,7 +263,6 @@ enum GeneralMessage {
     ///   "reqid": 42
     /// }
     ///```
-    #[serde(rename = "error")]
     Error{
         /// Error detail message.
         #[serde(rename = "errorMessage")]

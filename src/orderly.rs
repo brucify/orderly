@@ -1,7 +1,7 @@
 use crate::error::Error;
 use crate::grpc::OrderBookService;
 use crate::orderbook::{Exchanges, InTick, OutTick};
-use crate::{bitstamp, stdin, binance, websocket, kraken};
+use crate::{bitstamp, stdin, binance, websocket, kraken, coinbase};
 use futures::channel::mpsc::UnboundedSender;
 use futures::{SinkExt, StreamExt};
 use log::{debug, info};
@@ -15,6 +15,7 @@ pub async fn run(
     no_bitstamp: bool,
     no_binance: bool,
     no_kraken: bool,
+    no_coinbase: bool,
 ) -> Result<(), Error>
 {
     let connector = Connector::new();
@@ -25,7 +26,7 @@ pub async fn run(
     });
 
     connector.run(symbol,
-                  no_bitstamp, no_binance, no_kraken).await?;
+                  no_bitstamp, no_binance, no_kraken, no_coinbase).await?;
 
     Ok(())
 }
@@ -48,11 +49,13 @@ impl Connector {
         no_bitstamp: bool,
         no_binance: bool,
         no_kraken: bool,
+        no_coinbase: bool,
     ) -> Result<(), Error>
     {
         let mut ws_bitstamp = bitstamp::connect(symbol).await?;
         let mut ws_binance = binance::connect(symbol).await?;
         let mut ws_kraken = kraken::connect(symbol).await?;
+        let mut ws_coinbase = coinbase::connect(symbol).await?;
         let mut rx_stdin = stdin::rx();
         let (tx_in_ticks, mut rx_in_ticks) = futures::channel::mpsc::unbounded();
 
@@ -61,6 +64,19 @@ impl Connector {
         // handle websocket messages
         loop {
             tokio::select! {
+                ws_msg = ws_coinbase.next() => {
+                    let tx = tx_in_ticks.clone();
+
+                    let res = handle(ws_msg).and_then(|msg| {
+                        if no_coinbase { Ok(()) }
+                        else { msg.parse_and_send(coinbase::parse, tx) }
+                    });
+
+                    if let Err(e) = res {
+                        info!("Err: {:?}", e);
+                        break
+                    }
+                },
                 ws_msg = ws_kraken.next() => {
                     let tx = tx_in_ticks.clone();
 
@@ -104,7 +120,7 @@ impl Connector {
                     match stdin_msg {
                         Some(msg) => {
                             info!("Sent to WS: {:?}", msg);
-                            let _ = ws_kraken.send(Message::Text(msg)).await;
+                            let _ = ws_coinbase.send(Message::Text(msg)).await;
                         },
                         None => break,
                     }
@@ -133,6 +149,7 @@ impl Connector {
         websocket::close(&mut ws_bitstamp).await;
         websocket::close(&mut ws_binance).await;
         websocket::close(&mut ws_kraken).await;
+        websocket::close(&mut ws_coinbase).await;
 
         Ok(())
     }

@@ -1,5 +1,6 @@
 mod binance;
 mod bitstamp;
+mod coinbase;
 mod error;
 mod grpc;
 mod kraken;
