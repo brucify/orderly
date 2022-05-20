@@ -640,13 +640,10 @@ pub(crate) fn parse(msg: Message) -> Result<Option<InTick>, Error> {
 
             let e = deserialize_event(x)?;
             match e {
-                Event::GeneralMessage(_) => {
-                    info!("{:?}", e);
-                },
-                Event::PublicMessage(_) => {
-                    debug!("{:?}", e);
-                },
+                Event::GeneralMessage(_) => info!("{:?}", e),
+                Event::PublicMessage(_) => debug!("{:?}", e),
             }
+
             Some(e)
         },
         Message::Ping(x) => { info!("Ping {:?}", x); None },

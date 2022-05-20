@@ -98,12 +98,14 @@ pub(crate) fn parse(msg: Message) -> Result<Option<InTick>, Error> {
     let e = match msg {
         Message::Binary(x) => { info!("binary {:?}", x); None },
         Message::Text(x) => {
+            debug!("{:?}", x);
+
             let e= deserialize(x)?;
-            if let Event::Data{..} = e {
-                debug!("{:?}", e);
-            } else {
-                info!("{:?}", e);
+            match e {
+                Event::Data{..} => debug!("{:?}", e),
+                _ => info!("{:?}", e),
             }
+
             Some(e)
         },
         Message::Ping(x) => { info!("Ping {:?}", x); None },

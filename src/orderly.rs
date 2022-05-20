@@ -3,7 +3,7 @@ use crate::grpc::OrderBookService;
 use crate::orderbook::{Exchanges, InTick, OutTick};
 use crate::{bitstamp, stdin, binance, websocket, kraken, coinbase};
 use futures::channel::mpsc::UnboundedSender;
-use futures::{SinkExt, StreamExt};
+use futures::{join, SinkExt, StreamExt};
 use log::{debug, info};
 use std::sync::Arc;
 use tokio::sync::{RwLock, watch};
@@ -52,10 +52,22 @@ impl Connector {
         no_coinbase: bool,
     ) -> Result<(), Error>
     {
-        let mut ws_bitstamp = bitstamp::connect(symbol).await?;
-        let mut ws_binance = binance::connect(symbol).await?;
-        let mut ws_kraken = kraken::connect(symbol).await?;
-        let mut ws_coinbase = coinbase::connect(symbol).await?;
+        let (
+            ws_bitstamp,
+            ws_binance,
+            ws_kraken,
+            ws_coinbase,
+        ) = join!(
+            bitstamp::connect(symbol),
+            binance::connect(symbol),
+            kraken::connect(symbol),
+            coinbase::connect(symbol),
+        );
+        let mut ws_bitstamp = ws_bitstamp?;
+        let mut ws_binance = ws_binance?;
+        let mut ws_kraken = ws_kraken?;
+        let mut ws_coinbase = ws_coinbase?;
+
         let mut rx_stdin = stdin::rx();
         let (tx_in_ticks, mut rx_in_ticks) = futures::channel::mpsc::unbounded();
 

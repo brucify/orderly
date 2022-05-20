@@ -1,4 +1,5 @@
 use chrono::{DateTime, Utc};
+use futures::SinkExt;
 use crate::error::Error;
 use crate::orderbook::{self, Exchange, InTick, ToLevel, ToLevels, ToTick};
 use crate::websocket;
@@ -434,9 +435,27 @@ impl ToTick for Event {
 }
 
 pub(crate) async fn connect(symbol: &String) -> Result<websocket::WsStream, Error> {
-    let _depth = 10;
-    let _symbol = symbol.to_lowercase().replace("/", "");
-    Ok(websocket::connect(COINBASE_WS_URL).await?)
+    let mut ws_stream = websocket::connect(COINBASE_WS_URL).await?;
+    subscribe(&mut ws_stream, symbol).await?;
+    Ok(ws_stream)
+}
+
+async fn subscribe (
+    rx: &mut websocket::WsStream,
+    symbol: &String,
+) -> Result<(), Error>
+{
+    let symbol = symbol.to_uppercase().replace("/", "-");
+    let sub = Event::Subscribe{
+        product_ids: Some(vec![ symbol ]),
+        channels: vec![
+            Channel::Channel("level2".to_string()),
+            Channel::Channel("heartbeat".to_string()),
+        ]
+    };
+    let msg = serialize(sub)?;
+    rx.send(Message::Text(msg)).await?;
+    Ok(())
 }
 
 pub(crate) fn parse(msg: Message) -> Result<Option<InTick>, Error> {
@@ -444,8 +463,15 @@ pub(crate) fn parse(msg: Message) -> Result<Option<InTick>, Error> {
         Message::Binary(x) => { info!("binary {:?}", x); None },
         Message::Text(x) => {
             debug!("{:?}", x);
+
             let e= deserialize(x)?;
-            debug!("{:?}", e);
+            match e {
+                Event::Ticker { .. } => debug!("{:?}", e),
+                Event::Snapshot { .. } => debug!("{:?}", e),
+                Event::L2Update { .. } => debug!("{:?}", e),
+                _ => info!("{:?}", e),
+            }
+
             Some(e)
         },
         Message::Ping(x) => { info!("Ping {:?}", x); None },
