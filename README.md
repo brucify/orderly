@@ -42,7 +42,7 @@ cargo run --bin orderly-server -- --no-binance --no-bitstamp
 ```
 
 
-<img src="https://user-images.githubusercontent.com/1086619/169376599-7eccdb75-08ad-4273-a18a-197ebd53dd63.jpg" width="700"/>
+<img src="https://user-images.githubusercontent.com/1086619/169551698-3d59df5d-73db-47a3-a84d-cb0d2d0dd678.jpg" width="700"/>
 
 Client
 -----
