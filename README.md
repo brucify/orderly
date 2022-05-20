@@ -9,6 +9,7 @@ Currently supports:
 * Bitstamp WebSocket: `wss://ws.bitstamp.net`
 * Binance WebSocket: `wss://stream.binance.com:9443/ws`
 * Kraken WebSocket: `wss://ws.kraken.com`
+* Coinbase WebSocket: `wss://ws-feed.exchange.coinbase.com`
 
 ```
 USAGE:
@@ -19,6 +20,7 @@ OPTIONS:
         --no-binance         (Optional) Don't show Binance in gRPC stream. Default: false
         --no-bitstamp        (Optional) Don't show Bitstamp in gRPC stream. Default: false
         --no-kraken          (Optional) Don't show Kraken in gRPC stream. Default: false
+        --no-coinbase        (Optional) Don't show Coinbase in gRPC stream. Default: false
     -p, --port <PORT>        (Optional) Port number on which the the gRPC server will be hosted.
                              Default: 50051
     -s, --symbol <SYMBOL>    (Optional) Currency pair to subscribe to. Default: ETH/BTC

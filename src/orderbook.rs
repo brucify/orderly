@@ -35,6 +35,7 @@ pub(crate) enum Exchange {
     Bitstamp,
     Binance,
     Kraken,
+    Coinbase,
 }
 
 impl ToString for Exchange {
@@ -43,6 +44,7 @@ impl ToString for Exchange {
             Exchange::Bitstamp => "bitstamp".to_string(),
             Exchange::Binance => "binance".to_string(),
             Exchange::Kraken => "kraken".to_string(),
+            Exchange::Coinbase => "coinbase".to_string(),
         }
     }
 }
@@ -109,6 +111,7 @@ pub(crate) struct Exchanges {
     bitstamp: OrderDepths,
     binance: OrderDepths,
     kraken: OrderDepthsMap,
+    coinbase: OrderDepthsMap,
 }
 
 impl Exchanges {
@@ -117,6 +120,7 @@ impl Exchanges {
             bitstamp: OrderDepths::new(),
             binance: OrderDepths::new(),
             kraken: OrderDepthsMap::new(),
+            coinbase: OrderDepthsMap::new(),
         }
     }
 
@@ -142,6 +146,17 @@ impl Exchanges {
 
                 self.kraken.bids.extend_and_keep(bids, 10);
                 self.kraken.asks.extend_and_keep(asks, 10);
+            },
+            Exchange::Coinbase => {
+                let bids = t.bids.into_iter()
+                    .map(|l| (l.price, l))
+                    .collect::<LevelsMap>();
+                let asks = t.asks.into_iter()
+                    .map(|l| (l.price, l))
+                    .collect::<LevelsMap>();
+
+                self.coinbase.bids.extend_and_keep(bids, 10);
+                self.coinbase.asks.extend_and_keep(asks, 10);
             }
         }
     }
@@ -152,6 +167,7 @@ impl Exchanges {
             self.bitstamp.bids.clone()
                 .merge(self.binance.bids.clone())
                 .merge_map(self.kraken.bids.clone())
+                .merge_map(self.coinbase.bids.clone())
                 .into_iter().rev().take(10)
                 .collect();
 
@@ -159,6 +175,7 @@ impl Exchanges {
             self.bitstamp.asks.clone()
                 .merge(self.binance.asks.clone())
                 .merge_map(self.kraken.asks.clone())
+                .merge_map(self.coinbase.asks.clone())
                 .into_iter().take(10)
                 .collect();
 
@@ -299,6 +316,7 @@ mod test {
             },
             binance: OrderDepths::new(),
             kraken: OrderDepthsMap::new(),
+            coinbase: OrderDepthsMap::new(),
         });
     }
 
@@ -389,9 +407,37 @@ mod test {
                 Level::new(dec!(20.75), dec!(3), Exchange::Kraken),
             ],
         };
+        let t4 = InTick {
+            exchange: Exchange::Coinbase,
+            bids: vec![
+                Level::new(dec!(10.85), dec!(4), Exchange::Coinbase),
+                Level::new(dec!(9.85), dec!(4), Exchange::Coinbase),
+                Level::new(dec!(8.85), dec!(4), Exchange::Coinbase),
+                Level::new(dec!(7.85), dec!(4), Exchange::Coinbase),
+                Level::new(dec!(6.85), dec!(4), Exchange::Coinbase),
+                Level::new(dec!(5.85), dec!(4), Exchange::Coinbase),
+                Level::new(dec!(4.85), dec!(4), Exchange::Coinbase),
+                Level::new(dec!(3.85), dec!(4), Exchange::Coinbase),
+                Level::new(dec!(2.85), dec!(4), Exchange::Coinbase),
+                Level::new(dec!(1.85), dec!(4), Exchange::Coinbase),
+            ],
+            asks: vec![
+                Level::new(dec!(11.85), dec!(4), Exchange::Coinbase),
+                Level::new(dec!(12.85), dec!(4), Exchange::Coinbase),
+                Level::new(dec!(13.85), dec!(4), Exchange::Coinbase),
+                Level::new(dec!(14.85), dec!(4), Exchange::Coinbase),
+                Level::new(dec!(15.85), dec!(4), Exchange::Coinbase),
+                Level::new(dec!(16.85), dec!(4), Exchange::Coinbase),
+                Level::new(dec!(17.85), dec!(4), Exchange::Coinbase),
+                Level::new(dec!(18.85), dec!(4), Exchange::Coinbase),
+                Level::new(dec!(19.85), dec!(4), Exchange::Coinbase),
+                Level::new(dec!(20.85), dec!(4), Exchange::Coinbase),
+            ],
+        };
         exchanges.update(t1);
         exchanges.update(t2);
         exchanges.update(t3);
+        exchanges.update(t4);
 
         /*
          * When
@@ -402,30 +448,30 @@ mod test {
          * Then
          */
         assert_eq!(out_tick, OutTick {
-            spread: dec!(0.25),
+            spread: dec!(0.15),
             bids:vec![
+                Level::new(dec!(10.85), dec!(4), Exchange::Coinbase),
                 Level::new(dec!(10.75), dec!(3), Exchange::Kraken),
                 Level::new(dec!(10.5), dec!(2), Exchange::Binance),
                 Level::new(dec!(10), dec!(1), Exchange::Bitstamp),
+                Level::new(dec!(9.85), dec!(4), Exchange::Coinbase),
                 Level::new(dec!(9.75), dec!(3), Exchange::Kraken),
                 Level::new(dec!(9.5), dec!(2), Exchange::Binance),
                 Level::new(dec!(9), dec!(1), Exchange::Bitstamp),
+                Level::new(dec!(8.85), dec!(4), Exchange::Coinbase),
                 Level::new(dec!(8.75), dec!(3), Exchange::Kraken),
-                Level::new(dec!(8.5), dec!(2), Exchange::Binance),
-                Level::new(dec!(8), dec!(1), Exchange::Bitstamp),
-                Level::new(dec!(7.75), dec!(3), Exchange::Kraken),
             ],
             asks: vec![
                 Level::new(dec!(11), dec!(1), Exchange::Bitstamp),
                 Level::new(dec!(11.5), dec!(2), Exchange::Binance),
                 Level::new(dec!(11.75), dec!(3), Exchange::Kraken),
+                Level::new(dec!(11.85), dec!(4), Exchange::Coinbase),
                 Level::new(dec!(12), dec!(1), Exchange::Bitstamp),
                 Level::new(dec!(12.5), dec!(2), Exchange::Binance),
                 Level::new(dec!(12.75), dec!(3), Exchange::Kraken),
+                Level::new(dec!(12.85), dec!(4), Exchange::Coinbase),
                 Level::new(dec!(13), dec!(1), Exchange::Bitstamp),
                 Level::new(dec!(13.5), dec!(2), Exchange::Binance),
-                Level::new(dec!(13.75), dec!(3), Exchange::Kraken),
-                Level::new(dec!(14), dec!(1), Exchange::Bitstamp),
             ],
         });
     }

@@ -20,6 +20,9 @@ struct Cli {
     #[clap(long, help = "(Optional) Disable Kraken. Default: false")]
     no_kraken: bool,
 
+    #[clap(long, help = "(Optional) Disable Coinbase. Default: false")]
+    no_coinbase: bool,
+
 }
 
 #[tokio::main]
@@ -31,8 +34,9 @@ async fn main() {
     let no_bitstamp: bool = args.no_bitstamp;
     let no_binance: bool = args.no_binance;
     let no_kraken: bool = args.no_kraken;
+    let no_coinbase: bool = args.no_coinbase;
 
     orderly::run(&symbol, port,
-                 no_bitstamp, no_binance, no_kraken).await.unwrap();
+                 no_bitstamp, no_binance, no_kraken, no_coinbase).await.unwrap();
 }
 
