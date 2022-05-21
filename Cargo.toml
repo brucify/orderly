@@ -11,6 +11,7 @@ chrono = "0.4.19"
 clap = { version = "3.1.12", features = ["derive"] }
 env_logger = "0.9.0"
 futures = "0.3.21"
+indicatif = "0.16.2"
 log = "0.4.16"
 prost = "0.10.3"
 rust_decimal = "1.23"
