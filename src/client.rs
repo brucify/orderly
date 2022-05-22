@@ -1,6 +1,8 @@
 use clap::Parser;
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use proto::orderbook_aggregator_client::OrderbookAggregatorClient;
+use rust_decimal::Decimal;
+use rust_decimal::prelude::FromPrimitive;
 
 mod proto {
     tonic::include_proto!("orderbook");
@@ -37,7 +39,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // setting up indicatif
     let m = MultiProgress::new();
     let spinner_style = ProgressStyle::default_spinner()
-        .template("{prefix:.bold.dim} {spinner} {wide_msg}")
+        .template("{prefix:.bold.dim} {spinner} {bar:40.cyan/blue} {wide_msg}")
         .tick_chars("⠁⠂⠄⡀⢀⠠⠐⠈ ");
 
     let bid0 = m.add(ProgressBar::new(100));
@@ -78,13 +80,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     pb_bids.iter()
         .enumerate()
         .for_each(|(i, pb)| {
-            pb.set_prefix(format!("[Bid {}]", i.abs_diff(9)));
+            pb.set_prefix(format!("[Bid  {}]", i.abs_diff(9)));
             pb.set_style(spinner_style.clone());
         });
     pb_asks.iter()
         .enumerate()
         .for_each(|(i, pb)| {
-            pb.set_prefix(format!("[Ask {}]", i));
+            pb.set_prefix(format!("[Ask  {}]", i));
             pb.set_style(spinner_style.clone());
         });
 
@@ -94,20 +96,48 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     while let Some(res) = response.message().await? {
         let proto::Summary{spread, bids, asks} = res;
 
-        bids.iter().rev()
-            .enumerate()
-            .for_each(|(i, b)| {
-                pb_bids[i].set_message(format!("{:?}", b));
-            });
+        // set spread
+        let mut spread = Decimal::from_f64(spread).unwrap();
+        spread.rescale(8);
+        pb_spread.set_message(format!("{}", spread));
 
-        pb_spread.set_message(format!("{:?}", spread.to_string()));
+        let bid_max_len = bids.iter().map(|l| l.amount as u64).max();
+        let ask_max_len = asks.iter().map(|l| l.amount as u64).max();
 
-        asks.iter()
-            .enumerate()
-            .for_each(|(i, a)| {
-                pb_asks[i].set_message(format!("{:?}", a));
-            });
+        // set bids
+        bids.iter().rev().enumerate().for_each(|(i, level)|
+            pb_bids[i].set_level(bid_max_len, level)
+        );
+
+        // set asks
+        asks.iter().enumerate().for_each(|(i, level)|
+            pb_asks[i].set_level(ask_max_len, level)
+        );
     }
 
     Ok(())
+}
+
+trait SetLevel {
+    fn set_level(&self, max_len: Option<u64>, level: &proto::Level);
+}
+
+impl SetLevel for ProgressBar {
+    fn set_level(&self, max_len: Option<u64>, level: &proto::Level) {
+        // set len
+        max_len.map(|len| self.set_length(len));
+
+        // set message
+        let mut price = Decimal::from_f64(level.price).unwrap();
+        let mut amount = Decimal::from_f64(level.amount).unwrap();
+        price.rescale(8);
+        amount.rescale(8);
+        let msg = format!("{} {} {}", price, amount, level.exchange);
+        self.set_message(msg);
+
+        // set position
+        let pos = level.amount as u64;
+        self.set_position(pos);
+
+    }
 }

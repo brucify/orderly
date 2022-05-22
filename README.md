@@ -1,8 +1,12 @@
 
 # orderly
 
-Pulls order depths for the given currency pair from the WebSocket feeds of multiple exchanges.
+A Rust CLI WebSocket client for crypto exchanges. 
+Connects to the WebSocket feeds of multiple exchanges. 
+Subscribes to the live order book for the given currency pair.
 Publishes a merged order book as a gRPC stream.
+
+<img src="https://user-images.githubusercontent.com/1086619/169712976-fa2639a3-f083-4a33-8edb-4aade0cf8ae6.gif" />
 
 Currently supports: 
 
@@ -41,13 +45,12 @@ Exclude certain exchanges:
 cargo run --bin orderly-server -- --no-binance --no-bitstamp
 ```
 
-
-<img src="https://user-images.githubusercontent.com/1086619/169551698-3d59df5d-73db-47a3-a84d-cb0d2d0dd678.jpg" width="700"/>
-
 Client
 -----
 
 Connects to the gRPC server and streams the orderbook summary.
+
+<img src="https://user-images.githubusercontent.com/1086619/169551698-3d59df5d-73db-47a3-a84d-cb0d2d0dd678.jpg" width="700"/>
 
 ```
 USAGE:
