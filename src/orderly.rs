@@ -1,10 +1,10 @@
-use crate::error::Error;
+use crate::error::{Error, ExchangeErr};
 use crate::grpc::OrderBookService;
 use crate::orderbook::{Exchanges, InTick, OutTick};
 use crate::{bitstamp, stdin, binance, websocket, kraken, coinbase};
 use futures::channel::mpsc::UnboundedSender;
 use futures::{join, SinkExt, StreamExt};
-use log::{debug, info};
+use log::{debug, error, info};
 use std::sync::Arc;
 use tokio::sync::{RwLock, watch};
 use tungstenite::protocol::Message;
@@ -79,52 +79,60 @@ impl Connector {
                 ws_msg = ws_coinbase.next() => {
                     let tx = tx_in_ticks.clone();
 
-                    let res = handle(ws_msg).and_then(|msg| {
-                        if no_coinbase { Ok(()) }
-                        else { msg.parse_and_send(coinbase::parse, tx) }
-                    });
+                    let res = handle(ws_msg)
+                        .and_then(|msg| {
+                            if no_coinbase { Ok(()) }
+                            else { msg.parse_and_send(coinbase::parse, tx) }
+                        })
+                        .map_err(ExchangeErr::Coinbase);
 
                     if let Err(e) = res {
-                        info!("Err: {:?}", e);
+                        error!("Err: {:?}", e);
                         break
                     }
                 },
                 ws_msg = ws_kraken.next() => {
                     let tx = tx_in_ticks.clone();
 
-                    let res = handle(ws_msg).and_then(|msg| {
-                        if no_kraken { Ok(()) }
-                        else { msg.parse_and_send(kraken::parse, tx) }
-                    });
+                    let res = handle(ws_msg)
+                        .and_then(|msg| {
+                            if no_kraken { Ok(()) }
+                            else { msg.parse_and_send(kraken::parse, tx) }
+                        })
+                        .map_err(ExchangeErr::Kraken);
 
                     if let Err(e) = res {
-                        info!("Err: {:?}", e);
+                        error!("Err: {:?}", e);
                         break
                     }
                 },
                 ws_msg = ws_bitstamp.next() => {
                     let tx = tx_in_ticks.clone();
 
-                    let res = handle(ws_msg).and_then(|msg| {
-                        if no_bitstamp { Ok(()) }
-                        else { msg.parse_and_send(bitstamp::parse, tx) }
-                    });
+                    let res = handle(ws_msg)
+                        .and_then(|msg| {
+                            if no_bitstamp { Ok(()) }
+                            else { msg.parse_and_send(bitstamp::parse, tx) }
+                        })
+                        .map_err(ExchangeErr::Bitstamp);
 
                     if let Err(e) = res {
-                        info!("Err: {:?}", e);
+                        error!("Err: {:?}", e);
                         break
                     }
                 },
                 ws_msg = ws_binance.next() => {
                     let tx = tx_in_ticks.clone();
 
-                    let res = handle(ws_msg).and_then(|msg| {
-                        if no_binance { Ok(()) }
-                        else { msg.parse_and_send(binance::parse, tx) }
-                    });
+                    let res = handle(ws_msg)
+                        .and_then(|msg| {
+                            if no_binance { Ok(()) }
+                            else { msg.parse_and_send(binance::parse, tx) }
+                        })
+                        .map_err(ExchangeErr::Binance);
 
                     if let Err(e) = res {
-                        info!("Err: {:?}", e);
+                        error!("Err: {:?}", e);
                         break
                     }
                 },
@@ -158,10 +166,12 @@ impl Connector {
         }
 
         // Gracefully close connection by Close-handshake procedure
-        websocket::close(&mut ws_bitstamp).await;
-        websocket::close(&mut ws_binance).await;
-        websocket::close(&mut ws_kraken).await;
-        websocket::close(&mut ws_coinbase).await;
+        join!(
+            websocket::close(&mut ws_bitstamp),
+            websocket::close(&mut ws_binance),
+            websocket::close(&mut ws_kraken),
+            websocket::close(&mut ws_coinbase)
+        );
 
         Ok(())
     }
