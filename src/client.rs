@@ -3,6 +3,7 @@ use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use proto::orderbook_aggregator_client::OrderbookAggregatorClient;
 use rust_decimal::Decimal;
 use rust_decimal::prelude::FromPrimitive;
+use rust_decimal_macros::dec;
 
 mod proto {
     tonic::include_proto!("orderbook");
@@ -99,7 +100,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         // set spread
         let mut spread = Decimal::from_f64(spread).unwrap();
         spread.rescale(8);
-        pb_spread.set_message(format!("{}", spread));
+        spread_percentage(spread, asks.first())
+            .map(|perc|
+                pb_spread.set_message(format!("{} ({}%)", spread, perc))
+            );
 
         let bid_max_len = bids.iter().map(|l| l.amount as u64).max();
         let ask_max_len = asks.iter().map(|l| l.amount as u64).max();
@@ -140,4 +144,13 @@ impl SetLevel for ProgressBar {
         self.set_position(pos);
 
     }
+}
+
+fn spread_percentage(spread: Decimal, best_ask: Option<&proto::Level>) -> Option<Decimal> {
+    best_ask
+        .map(|l| {
+            let mut perc = spread /  Decimal::from_f64(l.price).unwrap() * dec!(100);
+            perc.rescale(4);
+            perc
+        })
 }
