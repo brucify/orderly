@@ -6,7 +6,7 @@ Connects to the WebSocket feeds of multiple exchanges.
 Subscribes to the live order book for the given currency pair.
 Publishes a merged order book as a gRPC stream.
 
-<img src="https://user-images.githubusercontent.com/1086619/169712976-fa2639a3-f083-4a33-8edb-4aade0cf8ae6.gif" />
+<img src="https://user-images.githubusercontent.com/1086619/170038125-8a4ed933-9cec-4a7a-9085-2dd806ca0307.gif" />
 
 Currently supports: 
 
