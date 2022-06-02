@@ -37,8 +37,8 @@ impl ToTick for Event {
     fn maybe_to_tick(&self) -> Option<InTick> {
         match self {
             Event::Data { data, .. } => {
-                let bids = data.bids.to_levels(10);
-                let asks = data.asks.to_levels(10);
+                let bids = data.bids.to_levels(orderbook::Side::Bid, 10);
+                let asks = data.asks.to_levels(orderbook::Side::Ask, 10);
 
                 Some(InTick { exchange: Exchange::Bitstamp, bids, asks })
             },
@@ -81,8 +81,8 @@ struct Level {
 
 impl ToLevel for Level {
     /// Converts a `bitstamp::Level` into a `orderbook::Level`.
-    fn to_level(&self) -> orderbook::Level {
-        orderbook::Level::new(self.price, self.amount, Exchange::Bitstamp)
+    fn to_level(&self, side: orderbook::Side) -> orderbook::Level {
+        orderbook::Level::new(side, self.price, self.amount, Exchange::Bitstamp)
     }
 }
 

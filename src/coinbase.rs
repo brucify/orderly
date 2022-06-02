@@ -291,8 +291,8 @@ struct Level {
 
 impl ToLevel for Level {
     /// Converts a `coinbase::Level` into a `orderbook::Level`.
-    fn to_level(&self) -> orderbook::Level {
-        orderbook::Level::new(self.price, self.amount, Exchange::Coinbase)
+    fn to_level(&self, side: orderbook::Side) -> orderbook::Level {
+        orderbook::Level::new(side, self.price, self.amount, Exchange::Coinbase)
     }
 }
 
@@ -305,8 +305,8 @@ struct Change {
 
 impl ToLevel for Change {
     /// Converts a `coinbase::Change` into a `orderbook::Level`.
-    fn to_level(&self) -> orderbook::Level {
-        orderbook::Level::new(self.price, self.amount, Exchange::Coinbase)
+    fn to_level(&self, side: orderbook::Side) -> orderbook::Level {
+        orderbook::Level::new(side, self.price, self.amount, Exchange::Coinbase)
     }
 }
 
@@ -412,8 +412,8 @@ impl ToTick for Event {
     fn maybe_to_tick(&self) -> Option<InTick> {
         match self {
             Event::Snapshot { bids, asks, .. } => {
-                let bids = bids.to_levels(10);
-                let asks = asks.to_levels(10);
+                let bids = bids.to_levels(orderbook::Side::Bid, 10);
+                let asks = asks.to_levels(orderbook::Side::Ask, 10);
 
                 Some(InTick { exchange: Exchange::Coinbase, bids, asks })
             }
@@ -421,11 +421,11 @@ impl ToTick for Event {
                 let bids = changes.iter()
                     .filter(|c| c.side == Side::Buy)
                     .cloned().collect::<Vec<Change>>()
-                    .to_levels(10);
+                    .to_levels(orderbook::Side::Bid, 10);
                 let asks = changes.iter()
                     .filter(|c| c.side == Side::Sell)
                     .cloned().collect::<Vec<Change>>()
-                    .to_levels(10);
+                    .to_levels(orderbook::Side::Ask, 10);
 
                 Some(InTick { exchange: Exchange::Coinbase, bids, asks })
             }
@@ -736,28 +736,28 @@ mod test {
         assert_eq!(tick, Some(InTick{
             exchange: Exchange::Coinbase,
             bids: vec![
-                orderbook::Level::new(dec!(0.067990), dec!(29.35934962), Exchange::Coinbase),
-                orderbook::Level::new(dec!(0.067980), dec!(48.72763614), Exchange::Coinbase),
-                orderbook::Level::new(dec!(0.067970), dec!(25.55979457), Exchange::Coinbase),
-                orderbook::Level::new(dec!(0.067960), dec!(48.91046225), Exchange::Coinbase),
-                orderbook::Level::new(dec!(0.067950), dec!(17.83261805), Exchange::Coinbase),
-                orderbook::Level::new(dec!(0.067930), dec!(2.11301052), Exchange::Coinbase),
-                orderbook::Level::new(dec!(0.067920), dec!(48.92972805), Exchange::Coinbase),
-                orderbook::Level::new(dec!(0.067900), dec!(53.93281284), Exchange::Coinbase),
-                orderbook::Level::new(dec!(0.067880), dec!(15.00000000), Exchange::Coinbase),
-                orderbook::Level::new(dec!(0.067870), dec!(2.84944758), Exchange::Coinbase),
+                orderbook::Level::new(orderbook::Side::Bid, dec!(0.067990), dec!(29.35934962), Exchange::Coinbase),
+                orderbook::Level::new(orderbook::Side::Bid, dec!(0.067980), dec!(48.72763614), Exchange::Coinbase),
+                orderbook::Level::new(orderbook::Side::Bid, dec!(0.067970), dec!(25.55979457), Exchange::Coinbase),
+                orderbook::Level::new(orderbook::Side::Bid, dec!(0.067960), dec!(48.91046225), Exchange::Coinbase),
+                orderbook::Level::new(orderbook::Side::Bid, dec!(0.067950), dec!(17.83261805), Exchange::Coinbase),
+                orderbook::Level::new(orderbook::Side::Bid, dec!(0.067930), dec!(2.11301052), Exchange::Coinbase),
+                orderbook::Level::new(orderbook::Side::Bid, dec!(0.067920), dec!(48.92972805), Exchange::Coinbase),
+                orderbook::Level::new(orderbook::Side::Bid, dec!(0.067900), dec!(53.93281284), Exchange::Coinbase),
+                orderbook::Level::new(orderbook::Side::Bid, dec!(0.067880), dec!(15.00000000), Exchange::Coinbase),
+                orderbook::Level::new(orderbook::Side::Bid, dec!(0.067870), dec!(2.84944758), Exchange::Coinbase),
             ],
             asks: vec![
-                orderbook::Level::new(dec!(0.068010), dec!(2.61547960), Exchange::Coinbase),
-                orderbook::Level::new(dec!(0.068020), dec!(2.80351225), Exchange::Coinbase),
-                orderbook::Level::new(dec!(0.068040), dec!(24.45938572), Exchange::Coinbase),
-                orderbook::Level::new(dec!(0.068050), dec!(24.45938596), Exchange::Coinbase),
-                orderbook::Level::new(dec!(0.068060), dec!(14.63500000), Exchange::Coinbase),
-                orderbook::Level::new(dec!(0.068070), dec!(48.92440377), Exchange::Coinbase),
-                orderbook::Level::new(dec!(0.068080), dec!(4.00000000), Exchange::Coinbase),
-                orderbook::Level::new(dec!(0.068090), dec!(50.90608702), Exchange::Coinbase),
-                orderbook::Level::new(dec!(0.068110), dec!(18.43030000), Exchange::Coinbase),
-                orderbook::Level::new(dec!(0.068120), dec!(59.24322805), Exchange::Coinbase),
+                orderbook::Level::new(orderbook::Side::Ask, dec!(0.068010), dec!(2.61547960), Exchange::Coinbase),
+                orderbook::Level::new(orderbook::Side::Ask, dec!(0.068020), dec!(2.80351225), Exchange::Coinbase),
+                orderbook::Level::new(orderbook::Side::Ask, dec!(0.068040), dec!(24.45938572), Exchange::Coinbase),
+                orderbook::Level::new(orderbook::Side::Ask, dec!(0.068050), dec!(24.45938596), Exchange::Coinbase),
+                orderbook::Level::new(orderbook::Side::Ask, dec!(0.068060), dec!(14.63500000), Exchange::Coinbase),
+                orderbook::Level::new(orderbook::Side::Ask, dec!(0.068070), dec!(48.92440377), Exchange::Coinbase),
+                orderbook::Level::new(orderbook::Side::Ask, dec!(0.068080), dec!(4.00000000), Exchange::Coinbase),
+                orderbook::Level::new(orderbook::Side::Ask, dec!(0.068090), dec!(50.90608702), Exchange::Coinbase),
+                orderbook::Level::new(orderbook::Side::Ask, dec!(0.068110), dec!(18.43030000), Exchange::Coinbase),
+                orderbook::Level::new(orderbook::Side::Ask, dec!(0.068120), dec!(59.24322805), Exchange::Coinbase),
             ],
         }));
 

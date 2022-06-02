@@ -24,16 +24,16 @@ struct Level {
 
 impl ToLevel for Level {
     /// Converts a `binance::Level` into a `orderbook::Level`.
-    fn to_level(&self) -> orderbook::Level {
-        orderbook::Level::new(self.price, self.amount, Exchange::Binance)
+    fn to_level(&self, side: orderbook::Side) -> orderbook::Level {
+        orderbook::Level::new(side, self.price, self.amount, Exchange::Binance)
     }
 }
 
 impl ToTick for Event {
     /// Converts the `Event` into a `Option<InTick>`. Only keep the top ten levels of bids and asks.
     fn maybe_to_tick(&self) -> Option<InTick> {
-        let bids = self.bids.to_levels(10);
-        let asks = self.asks.to_levels(10);
+        let bids = self.bids.to_levels(orderbook::Side::Bid, 10);
+        let asks = self.asks.to_levels(orderbook::Side::Ask, 10);
 
         Some(InTick { exchange: Exchange::Binance, bids, asks })
     }

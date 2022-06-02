@@ -8,7 +8,7 @@ use url::Url;
 
 pub(crate) type WsStream = WebSocketStream<MaybeTlsStream<TcpStream>>;
 
-pub(crate) async fn connect(s: &str) -> Result<WebSocketStream<MaybeTlsStream<TcpStream>>, Error> {
+pub(crate) async fn connect(s: &str) -> Result<WsStream, Error> {
     let url = Url::parse(s).unwrap();
     let (ws_stream, _) =
         tokio_tungstenite::connect_async(url).await?;
@@ -16,7 +16,7 @@ pub(crate) async fn connect(s: &str) -> Result<WebSocketStream<MaybeTlsStream<Tc
     Ok(ws_stream)
 }
 
-pub(crate) async fn close(ws_stream: &mut WebSocketStream<MaybeTlsStream<TcpStream>>) {
+pub(crate) async fn close(ws_stream: &mut WsStream) {
     let _ = ws_stream.send(Message::Close(None)).await;
     let close = ws_stream.next().await;
     info!("server close msg: {:?}", close);

@@ -27,8 +27,8 @@ impl ToTick for Event {
                         payload: Payload::Book(Book::Snapshot {bids, asks}),
                         ..
                     })) => {
-                let bids = bids.to_levels(10);
-                let asks = asks.to_levels(10);
+                let bids = bids.to_levels(orderbook::Side::Bid, 10);
+                let asks = asks.to_levels(orderbook::Side::Ask, 10);
                 Some(InTick { exchange: Exchange::Kraken, bids, asks })
             },
             Event::PublicMessage(
@@ -38,8 +38,8 @@ impl ToTick for Event {
                         ..
                     })) => {
                 let mut tick = InTick{ exchange: Exchange::Kraken, bids: vec![], asks: vec![] };
-                bids.as_ref().map(|bids| tick.bids = bids.to_levels(10) );
-                asks.as_ref().map(|asks| tick.asks = asks.to_levels(10) );
+                bids.as_ref().map(|bids| tick.bids = bids.to_levels(orderbook::Side::Bid, 10) );
+                asks.as_ref().map(|asks| tick.asks = asks.to_levels(orderbook::Side::Ask, 10) );
                 Some(tick)
             },
             Event::PublicMessage(
@@ -50,10 +50,10 @@ impl ToTick for Event {
                         ..
                     })) => {
                 let mut tick = InTick{ exchange: Exchange::Kraken, bids: vec![], asks: vec![] };
-                b1.as_ref().map(|bids| tick.bids = bids.to_levels(10) );
-                b2.as_ref().map(|bids| tick.bids = bids.to_levels(10) );
-                a1.as_ref().map(|asks| tick.asks = asks.to_levels(10) );
-                a2.as_ref().map(|asks| tick.asks = asks.to_levels(10) );
+                b1.as_ref().map(|bids| tick.bids = bids.to_levels(orderbook::Side::Bid, 10) );
+                b2.as_ref().map(|bids| tick.bids = bids.to_levels(orderbook::Side::Bid, 10) );
+                a1.as_ref().map(|asks| tick.asks = asks.to_levels(orderbook::Side::Ask, 10) );
+                a2.as_ref().map(|asks| tick.asks = asks.to_levels(orderbook::Side::Ask, 10) );
                 Some(tick)
             },
             _ => None,
@@ -584,8 +584,8 @@ struct Level {
 
 impl ToLevel for Level {
     /// Converts a `kraken::Level` into a `orderbook::Level`.
-    fn to_level(&self) -> orderbook::Level {
-        orderbook::Level::new(self.price, self.volume, Exchange::Kraken)
+    fn to_level(&self, side: orderbook::Side) -> orderbook::Level {
+        orderbook::Level::new(side, self.price, self.volume, Exchange::Kraken)
     }
 }
 
@@ -942,28 +942,28 @@ mod test {
         assert_eq!(tick, Some(InTick{
             exchange: Exchange::Kraken,
             bids: vec![
-                orderbook::Level::new(dec!(0.067990), dec!(29.35934962), Exchange::Kraken),
-                orderbook::Level::new(dec!(0.067980), dec!(48.72763614), Exchange::Kraken),
-                orderbook::Level::new(dec!(0.067970), dec!(25.55979457), Exchange::Kraken),
-                orderbook::Level::new(dec!(0.067960), dec!(48.91046225), Exchange::Kraken),
-                orderbook::Level::new(dec!(0.067950), dec!(17.83261805), Exchange::Kraken),
-                orderbook::Level::new(dec!(0.067930), dec!(2.11301052), Exchange::Kraken),
-                orderbook::Level::new(dec!(0.067920), dec!(48.92972805), Exchange::Kraken),
-                orderbook::Level::new(dec!(0.067900), dec!(53.93281284), Exchange::Kraken),
-                orderbook::Level::new(dec!(0.067880), dec!(15.00000000), Exchange::Kraken),
-                orderbook::Level::new(dec!(0.067870), dec!(2.84944758), Exchange::Kraken),
+                orderbook::Level::new(orderbook::Side::Bid, dec!(0.067990), dec!(29.35934962), Exchange::Kraken),
+                orderbook::Level::new(orderbook::Side::Bid, dec!(0.067980), dec!(48.72763614), Exchange::Kraken),
+                orderbook::Level::new(orderbook::Side::Bid, dec!(0.067970), dec!(25.55979457), Exchange::Kraken),
+                orderbook::Level::new(orderbook::Side::Bid, dec!(0.067960), dec!(48.91046225), Exchange::Kraken),
+                orderbook::Level::new(orderbook::Side::Bid, dec!(0.067950), dec!(17.83261805), Exchange::Kraken),
+                orderbook::Level::new(orderbook::Side::Bid, dec!(0.067930), dec!(2.11301052), Exchange::Kraken),
+                orderbook::Level::new(orderbook::Side::Bid, dec!(0.067920), dec!(48.92972805), Exchange::Kraken),
+                orderbook::Level::new(orderbook::Side::Bid, dec!(0.067900), dec!(53.93281284), Exchange::Kraken),
+                orderbook::Level::new(orderbook::Side::Bid, dec!(0.067880), dec!(15.00000000), Exchange::Kraken),
+                orderbook::Level::new(orderbook::Side::Bid, dec!(0.067870), dec!(2.84944758), Exchange::Kraken),
             ],
             asks: vec![
-                orderbook::Level::new(dec!(0.068010), dec!(2.61547960), Exchange::Kraken),
-                orderbook::Level::new(dec!(0.068020), dec!(2.80351225), Exchange::Kraken),
-                orderbook::Level::new(dec!(0.068040), dec!(24.45938572), Exchange::Kraken),
-                orderbook::Level::new(dec!(0.068050), dec!(24.45938596), Exchange::Kraken),
-                orderbook::Level::new(dec!(0.068060), dec!(14.63500000), Exchange::Kraken),
-                orderbook::Level::new(dec!(0.068070), dec!(48.92440377), Exchange::Kraken),
-                orderbook::Level::new(dec!(0.068080), dec!(4.00000000), Exchange::Kraken),
-                orderbook::Level::new(dec!(0.068090), dec!(50.90608702), Exchange::Kraken),
-                orderbook::Level::new(dec!(0.068110), dec!(18.43030000), Exchange::Kraken),
-                orderbook::Level::new(dec!(0.068120), dec!(59.24322805), Exchange::Kraken),
+                orderbook::Level::new(orderbook::Side::Ask, dec!(0.068010), dec!(2.61547960), Exchange::Kraken),
+                orderbook::Level::new(orderbook::Side::Ask, dec!(0.068020), dec!(2.80351225), Exchange::Kraken),
+                orderbook::Level::new(orderbook::Side::Ask, dec!(0.068040), dec!(24.45938572), Exchange::Kraken),
+                orderbook::Level::new(orderbook::Side::Ask, dec!(0.068050), dec!(24.45938596), Exchange::Kraken),
+                orderbook::Level::new(orderbook::Side::Ask, dec!(0.068060), dec!(14.63500000), Exchange::Kraken),
+                orderbook::Level::new(orderbook::Side::Ask, dec!(0.068070), dec!(48.92440377), Exchange::Kraken),
+                orderbook::Level::new(orderbook::Side::Ask, dec!(0.068080), dec!(4.00000000), Exchange::Kraken),
+                orderbook::Level::new(orderbook::Side::Ask, dec!(0.068090), dec!(50.90608702), Exchange::Kraken),
+                orderbook::Level::new(orderbook::Side::Ask, dec!(0.068110), dec!(18.43030000), Exchange::Kraken),
+                orderbook::Level::new(orderbook::Side::Ask, dec!(0.068120), dec!(59.24322805), Exchange::Kraken),
             ],
         }));
 

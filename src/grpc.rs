@@ -113,7 +113,7 @@ impl proto::orderbook_aggregator_server::OrderbookAggregator for OrderBookServic
 mod test {
     use rust_decimal_macros::dec;
     use crate::grpc::proto;
-    use crate::orderbook::{Exchange, Level, OutTick};
+    use crate::orderbook::{Exchange, Level, OutTick, Side};
 
     #[test]
     fn should_convert_to_summary() {
@@ -123,28 +123,28 @@ mod test {
         let out_tick = OutTick {
             spread: dec!(0.00000010), 
             bids: vec![
-                Level { price: dec!(0.00018688), amount: dec!(610014.67000000), exchange: Exchange::Binance },
-                Level { price: dec!(0.00018687), amount: dec!(2205276.09000000), exchange: Exchange::Binance },
-                Level { price: dec!(0.00018686), amount: dec!(4959229.21000000), exchange: Exchange::Binance },
-                Level { price: dec!(0.00018685), amount: dec!(13520849.56000000), exchange: Exchange::Binance },
-                Level { price: dec!(0.00018683), amount: dec!(2697439.72000000), exchange: Exchange::Binance },
-                Level { price: dec!(0.00018682), amount: dec!(1575744.75000000), exchange: Exchange::Binance },
-                Level { price: dec!(0.00018681), amount: dec!(6302978.66000000), exchange: Exchange::Binance },
-                Level { price: dec!(0.00018680), amount: dec!(5954547.05000000), exchange: Exchange::Binance },
-                Level { price: dec!(0.00018679), amount: dec!(10776354.35000000), exchange: Exchange::Binance },
-                Level { price: dec!(0.00018678), amount: dec!(15388083.16000000), exchange: Exchange::Binance },
+                Level { side: Side::Bid, price: dec!(0.00018688), amount: dec!(610014.67000000), exchange: Exchange::Binance },
+                Level { side: Side::Bid, price: dec!(0.00018687), amount: dec!(2205276.09000000), exchange: Exchange::Binance },
+                Level { side: Side::Bid, price: dec!(0.00018686), amount: dec!(4959229.21000000), exchange: Exchange::Binance },
+                Level { side: Side::Bid, price: dec!(0.00018685), amount: dec!(13520849.56000000), exchange: Exchange::Binance },
+                Level { side: Side::Bid, price: dec!(0.00018683), amount: dec!(2697439.72000000), exchange: Exchange::Binance },
+                Level { side: Side::Bid, price: dec!(0.00018682), amount: dec!(1575744.75000000), exchange: Exchange::Binance },
+                Level { side: Side::Bid, price: dec!(0.00018681), amount: dec!(6302978.66000000), exchange: Exchange::Binance },
+                Level { side: Side::Bid, price: dec!(0.00018680), amount: dec!(5954547.05000000), exchange: Exchange::Binance },
+                Level { side: Side::Bid, price: dec!(0.00018679), amount: dec!(10776354.35000000), exchange: Exchange::Binance },
+                Level { side: Side::Bid, price: dec!(0.00018678), amount: dec!(15388083.16000000), exchange: Exchange::Binance },
             ],
             asks: vec![
-                Level { price: dec!(0.00018698), amount: dec!(595429.87000000), exchange: Exchange::Binance },
-                Level { price: dec!(0.00018699), amount: dec!(123707.71000000), exchange: Exchange::Binance },
-                Level { price: dec!(0.00018700), amount: dec!(44033903.92000000), exchange: Exchange::Binance },
-                Level { price: dec!(0.00018705), amount: dec!(4278646.87000000), exchange: Exchange::Binance },
-                Level { price: dec!(0.00018706), amount: dec!(12777847.03000000), exchange: Exchange::Binance },
-                Level { price: dec!(0.00018707), amount: dec!(11137472.05000000), exchange: Exchange::Binance },
-                Level { price: dec!(0.00018708), amount: dec!(380833.80000000), exchange: Exchange::Binance },
-                Level { price: dec!(0.00018710), amount: dec!(2938703.50000000), exchange: Exchange::Binance },
-                Level { price: dec!(0.00018711), amount: dec!(73753.41000000), exchange: Exchange::Binance },
-                Level { price: dec!(0.00018712), amount: dec!(566911.25000000), exchange: Exchange::Binance },
+                Level { side: Side::Ask, price: dec!(0.00018698), amount: dec!(595429.87000000), exchange: Exchange::Binance },
+                Level { side: Side::Ask, price: dec!(0.00018699), amount: dec!(123707.71000000), exchange: Exchange::Binance },
+                Level { side: Side::Ask, price: dec!(0.00018700), amount: dec!(44033903.92000000), exchange: Exchange::Binance },
+                Level { side: Side::Ask, price: dec!(0.00018705), amount: dec!(4278646.87000000), exchange: Exchange::Binance },
+                Level { side: Side::Ask, price: dec!(0.00018706), amount: dec!(12777847.03000000), exchange: Exchange::Binance },
+                Level { side: Side::Ask, price: dec!(0.00018707), amount: dec!(11137472.05000000), exchange: Exchange::Binance },
+                Level { side: Side::Ask, price: dec!(0.00018708), amount: dec!(380833.80000000), exchange: Exchange::Binance },
+                Level { side: Side::Ask, price: dec!(0.00018710), amount: dec!(2938703.50000000), exchange: Exchange::Binance },
+                Level { side: Side::Ask, price: dec!(0.00018711), amount: dec!(73753.41000000), exchange: Exchange::Binance },
+                Level { side: Side::Ask, price: dec!(0.00018712), amount: dec!(566911.25000000), exchange: Exchange::Binance },
             ],
         };
         
